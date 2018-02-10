@@ -647,7 +647,7 @@ namespace Js
 
         //1. Let onFinally be F.[[OnFinally]]
         //2. Assert: IsCallabale(onFinally)=true
-        assert(JavascriptConversion::IsCallable(This->GetOnFinally()));
+        Assert(JavascriptConversion::IsCallable(This->GetOnFinally()));
 
         //3. Let result be ? Call(onFinally, undefined)
         Var result = CALL_FUNCTION(scriptContext->GetThreadContext(), This->GetOnFinally(), CallInfo(CallFlags_Value, 1), library->GetUndefined());
