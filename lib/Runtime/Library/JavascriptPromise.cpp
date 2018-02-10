@@ -581,7 +581,7 @@ namespace Js
         //3. Let C be ? SpeciesConstructor(promise, %Promise%).
         RecyclableObject* constructor = JavascriptOperators::SpeciesConstructor(promise, scriptContext->GetLibrary()->GetPromiseConstructor(), scriptContext);
         //4. Assert IsConstructor(C)
-        Assert(JavascriptOperators::IsConstructor(This->GetConstructor()));
+        Assert(JavascriptOperators::IsConstructor(constructor));
 
         //5. If IsCallable(onFinally) is false
         //a. Let thenFinally be onFinally
@@ -647,7 +647,7 @@ namespace Js
 
         //1. Let onFinally be F.[[OnFinally]]
         //2. Assert: IsCallabale(onFinally)=true
-        assert(IsCallable(This->GetOnFinally()));
+        assert(JavascriptConversion::IsCallable(This->GetOnFinally()));
 
         //3. Let result be ? Call(onFinally, undefined)
         Var result = CALL_FUNCTION(scriptContext->GetThreadContext(), This->GetOnFinally(), CallInfo(CallFlags_Value, 1), library->GetUndefined());
