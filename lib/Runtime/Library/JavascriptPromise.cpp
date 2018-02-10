@@ -570,7 +570,7 @@ namespace Js
 
         AUTO_TAG_NATIVE_LIBRARY_ENTRY(function, callInfo, _u("Promise.prototype.finally"));
         //1. Let promise be the this value
-        //2. If Type(promie) is not Object, throw a TypeError exception
+        //2. If Type(promise) is not Object, throw a TypeError exception
         if (args.Info.Count < 1 || !JavascriptPromise::Is(args[0]))
         {
             JavascriptError::ThrowTypeError(scriptContext, JSERR_This_NeedPromise, _u("Promise.prototype.finally"));
@@ -592,8 +592,8 @@ namespace Js
         //  c. Set thenFinally and catchFinally's [[Constructor]] internal slots to C.
         //  d. Set thenFinally and catchFinally's [[OnFinally]] internal slots to onFinally.
 
-        RecyclableObject* thenFinally;
-        RecyclableObject* catchFinally;
+        Var thenFinally;
+        Var catchFinally;
 
         if (args.Info.Count > 1)
         {
@@ -605,8 +605,8 @@ namespace Js
             }
             else
             {
-                thenFinally = RecyclableObject::FromVar(args[1]);
-                catchFinally = RecyclableObject::FromVar(args[1]);
+                thenFinally = args[1];
+                catchFinally = args[1];
             }
         }
         else
@@ -614,7 +614,7 @@ namespace Js
             thenFinally = library->GetUndefined();
             catchFinally = library->GetUndefined();
         }
-        
+
         //7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
         Var funcVar = JavascriptOperators::GetProperty(promise, Js::PropertyIds::then, scriptContext);
         if (!JavascriptConversion::IsCallable(funcVar))
@@ -622,6 +622,7 @@ namespace Js
             JavascriptError::ThrowTypeError(scriptContext, JSERR_FunctionArgument_NeedFunction, _u("Promise.prototype.finally"));
         }
         RecyclableObject* func = RecyclableObject::FromVar(funcVar);
+
         return CALL_FUNCTION(scriptContext->GetThreadContext(),
             func, Js::CallInfo(CallFlags_Value, 3),
             promise,
