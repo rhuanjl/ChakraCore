@@ -225,6 +225,10 @@ typedef unsigned short uint16_t;
         /// </summary>
         JsErrorModuleParsed,
         /// <summary>
+        ///     Module was not yet evaluated when JsGetModuleNamespace was called.
+        /// </summary>
+        JsErrorModuleNotEvaluated,
+        /// <summary>
         ///     Argument passed to JsCreateWeakReference is a primitive that is not managed by the GC.
         ///     No weak reference is required, the value will never be collected.
         /// </summary>

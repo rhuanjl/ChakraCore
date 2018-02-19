@@ -5336,10 +5336,28 @@ CHAKRA_API JsGetDataViewInfo(
 
 CHAKRA_API JsSetHostPromiseRejectionTracker(_In_ JsHostPromiseRejectionTrackerCallback promiseRejectionTrackerCallback, _In_opt_ void *callbackState)
 {
-  return ContextAPINoScriptWrapper_NoRecord([&](Js::ScriptContext *scriptContext) -> JsErrorCode {
-    scriptContext->GetLibrary()->SetNativeHostPromiseRejectionTrackerCallback((Js::JavascriptLibrary::HostPromiseRejectionTrackerCallback) promiseRejectionTrackerCallback, callbackState);
-    return JsNoError;
-  },
+    return ContextAPINoScriptWrapper_NoRecord([&](Js::ScriptContext *scriptContext) -> JsErrorCode {
+        scriptContext->GetLibrary()->SetNativeHostPromiseRejectionTrackerCallback((Js::JavascriptLibrary::HostPromiseRejectionTrackerCallback) promiseRejectionTrackerCallback, callbackState);
+        return JsNoError;
+    },
+    /*allowInObjectBeforeCollectCallback*/true);
+}
+
+CHAKRA_API JsGetModuleNamespace(_In_ JsModuleRecord requestModule, _Outptr_result_maybenull_ JsValueRef *moduleNamespace)
+{
+    if (!Js::SourceTextModuleRecord::Is(requestModule))
+    {
+        return JsErrorInvalidArgument;
+    }
+    Js::SourceTextModuleRecord* moduleRecord = Js::SourceTextModuleRecord::FromHost(requestModule);
+    if(!moduleRecord->WasEvaluated())
+    {
+        return JsErrorModuleNotEvaluated;
+    }
+    return ContextAPINoScriptWrapper_NoRecord([&](Js::ScriptContext *scriptContext) -> JsErrorCode {
+        *moduleNamespace = (JsValueRef) moduleRecord->GetNamespace();
+        return JsNoError;
+    },
     /*allowInObjectBeforeCollectCallback*/true);
 }
 
