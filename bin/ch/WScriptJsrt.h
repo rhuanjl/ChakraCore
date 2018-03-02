@@ -35,23 +35,25 @@ public:
     private:
         JsModuleRecord moduleRecord;
         JsValueRef specifier;
+        bool instantiate;
 
-        ModuleMessage(JsModuleRecord module, JsValueRef specifier);
+        ModuleMessage(JsModuleRecord module, JsValueRef specifier, bool instantiate);
 
     public:
         ~ModuleMessage();
 
         virtual HRESULT Call(LPCSTR fileName) override;
 
-        static ModuleMessage* Create(JsModuleRecord module, JsValueRef specifier)
+        static ModuleMessage* Create(JsModuleRecord module, JsValueRef specifier, bool instantiate)
         {
-            return new ModuleMessage(module, specifier);
+            return new ModuleMessage(module, specifier, instantiate);
         }
 
     };
 
     static void AddMessageQueue(MessageQueue *messageQueue);
     static void PushMessage(MessageBase *message) { messageQueue->InsertSorted(message); }
+    static void PushPriorityMessage(MessageBase *message) { messageQueue->InsertPrioritised(message); }    
 
     static JsErrorCode FetchImportedModule(_In_ JsModuleRecord referencingModule, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
     static JsErrorCode FetchImportedModuleFromScript(_In_ DWORD_PTR dwReferencingSourceContext, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);

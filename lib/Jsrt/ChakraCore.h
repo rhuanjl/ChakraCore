@@ -94,7 +94,11 @@ typedef enum JsModuleHostInfoKind
     /// <summary>
     ///     URL for use in error stack traces and debugging.
     /// </summary>
-    JsModuleHostInfo_Url = 0x6
+    JsModuleHostInfo_Url = 0x6,
+    /// <summary>
+    ///     Use deferred linking - alternate loading pathway.
+    /// </summary>
+    JsModuleDeferLink = 0x7
 } JsModuleHostInfoKind;
 
 /// <summary>
@@ -1127,5 +1131,59 @@ CHAKRA_API
     JsGetModuleNamespace(
         _In_ JsModuleRecord requestModule,
         _Outptr_result_maybenull_ JsValueRef *moduleNamespace);
+
+/// <summary>
+///     Instantiate a Module - only for use with deferred linking Module loading.
+/// </summary>
+/// <remarks>
+///     This function links a module to all its child modules and prepares it for evaluation.
+///     In standard mode this step is performed automatically by CC.
+///     In deferred linking mode you must call this manually when all child modules have been loaded.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to instantiate.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+    JsInstantiateModule(
+        _In_ JsModuleRecord requestModule);
+
+/// <summary>
+///     Determine how many dependencies a module has.
+/// </summary>
+/// <remarks>
+///     This function tells you how many dependencies a module has.
+///     The module must have been parsed in advance.
+///     This is intended for deferred linking mode - in standard mode this information isn't useful.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to obtain the information for.</param>
+/// <param name="count">The number of dependencies the module has.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+    JsGetImportCount(
+        _In_ JsModuleRecord requestModule,
+        _Outptr_result_maybenull_ unsigned int *count);
+
+/// <summary>
+///     Obtain the specifier for a given dependency.
+/// </summary>
+/// <remarks>
+///     This function tells you the specifier of a dependency for the requestModule.
+///     The module must have been parsed in advance.
+///     This is intended for deferred linking mode - in standard mode this information isn't useful.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to obtain the information for.</param>
+/// <param name="index">The dependency you want the specifirr for.</param>
+/// <param name="specifier">The specifier for the dependency.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API 
+    JsGetIndexedImport(
+        _In_ JsModuleRecord requestModule,
+        _In_ unsigned int index,
+        _Outptr_result_maybenull_ JsValueRef *specifier);
 #endif // _CHAKRACOREBUILD
 #endif // _CHAKRACORE_H_

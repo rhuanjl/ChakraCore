@@ -46,7 +46,9 @@ namespace Js
         moduleId(InvalidModuleIndex),
         localSlotCount(InvalidSlotCount),
         promise(nullptr),
-        localExportCount(0)
+        localExportCount(0),
+        deferLinking(false),
+        instantiated(false)
     {
         namespaceRecord.module = this;
         namespaceRecord.bindingName = PropertyIds::star_;
@@ -247,16 +249,37 @@ namespace Js
         SetLocalExportRecordList(moduleParseNode->localExportEntries);
     }
 
+    HRESULT SourceTextModuleRecord::Instantiate()
+    {
+        HRESULT hr = NOERROR;
+        if (deferLinking)
+        {
+            if (!instantiated)
+            {
+                instantiated = true;
+                hr = ResolveExternalModuleDependencies();
+                if (SUCCEEDED(hr))
+                {
+                    hr = PrepareForModuleDeclarationInitialization();
+                }
+            }
+        }
+        return hr;
+    }
+
     HRESULT SourceTextModuleRecord::PostParseProcess()
     {
         HRESULT hr = NOERROR;
         SetWasParsed();
         ImportModuleListsFromParser();
-        hr = ResolveExternalModuleDependencies();
-
-        if (SUCCEEDED(hr))
+        if (!deferLinking)
         {
-            hr = PrepareForModuleDeclarationInitialization();
+            hr = ResolveExternalModuleDependencies();
+
+            if (SUCCEEDED(hr))
+            {
+                hr = PrepareForModuleDeclarationInitialization();
+            }
         }
         return hr;
     }
@@ -271,7 +294,7 @@ namespace Js
             promise = JavascriptPromise::CreateEnginePromise(scriptContext);
             this->SetPromise(promise);
         }
-
+        
         if (this->ParentsNotified())
         {
             HRESULT hr = NOERROR;
@@ -784,6 +807,11 @@ namespace Js
                         hr = E_FAIL;
                         return true;
                     }
+                }
+                hr = moduleRecord->Instantiate();
+                if (FAILED(hr))
+                {
+                    return true;
                 }
                 return false;
             });

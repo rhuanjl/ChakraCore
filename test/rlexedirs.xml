@@ -253,6 +253,11 @@
 </dir>
 <dir>
   <default>
+    <files>es6moduleDeferLink</files>
+  </default>
+</dir>
+<dir>
+  <default>
     <files>es7</files>
   </default>
 </dir>

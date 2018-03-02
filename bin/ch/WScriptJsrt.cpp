@@ -46,6 +46,7 @@
 MessageQueue* WScriptJsrt::messageQueue = nullptr;
 std::map<std::string, JsModuleRecord>  WScriptJsrt::moduleRecordMap;
 std::map<JsModuleRecord, std::string>  WScriptJsrt::moduleDirMap;
+int numberOfPendingModules = 0;
 std::map<DWORD_PTR, std::string> WScriptJsrt::scriptDirMap;
 DWORD_PTR WScriptJsrt::sourceContext = 0;
 
@@ -454,6 +455,18 @@ JsErrorCode WScriptJsrt::LoadModuleFromString(LPCSTR fileName, LPCSTR fileConten
             }
 
             moduleRecordMap[std::string(moduleRecordKey)] = requestModule;
+            if (HostConfigFlags::flags.DeferModuleLinking)
+            {
+                WScriptJsrt::ModuleMessage* moduleMessage =
+                    WScriptJsrt::ModuleMessage::Create(requestModule, nullptr, true);
+
+                if (moduleMessage == nullptr)
+                {
+                    return JsErrorOutOfMemory;
+                }
+                WScriptJsrt::PushPriorityMessage(moduleMessage);
+                ++numberOfPendingModules;
+            }
         }
     }
     else
@@ -473,13 +486,43 @@ JsErrorCode WScriptJsrt::LoadModuleFromString(LPCSTR fileName, LPCSTR fileConten
         errorCode = ChakraRTInterface::JsSetModuleHostInfo(requestModule, JsModuleHostInfo_Url, moduleUrl);
         IfJsrtErrorFail(errorCode, errorCode);
     }
- 
+
+    if (HostConfigFlags::flags.DeferModuleLinking)
+    {
+        ChakraRTInterface::JsSetModuleHostInfo(requestModule, JsModuleDeferLink, nullptr);
+    }
+
     errorCode = ChakraRTInterface::JsParseModuleSource(requestModule, dwSourceCookie, (LPBYTE)fileContent,
         fileContentLength, JsParseModuleSourceFlags_DataIsUTF8, &errorObject);
+    
+    if (errorCode != JsErrorModuleParsed)
+    {
+        --numberOfPendingModules;
+    }
+    
     if ((errorCode != JsNoError) && errorObject != JS_INVALID_REFERENCE && fileContent != nullptr && !HostConfigFlags::flags.IgnoreScriptErrorCode)
     {
         ChakraRTInterface::JsSetException(errorObject);
         return errorCode;
+    }
+
+    if (HostConfigFlags::flags.DeferModuleLinking)
+    {
+        unsigned int numImports = 0;
+        unsigned int i = 0;
+        
+        ChakraRTInterface::JsGetImportCount(requestModule, &numImports);
+
+        JsValueRef specifier;
+        JsModuleRecord dependentModuleRecord = nullptr;
+        for (i = 0; i < numImports; ++i)
+        {
+            errorCode = ChakraRTInterface::JsGetIndexedImport(requestModule, i, &specifier);
+            if (errorCode == JsNoError)
+            {
+                errorCode = WScriptJsrt::FetchImportedModule(requestModule, specifier, &dependentModuleRecord);
+            }
+        }
     }
     return JsNoError;
 }
@@ -1574,6 +1617,7 @@ Error:
 
 bool WScriptJsrt::PrintException(LPCSTR fileName, JsErrorCode jsErrorCode)
 {
+    numberOfPendingModules = 0;
     LPCWSTR errorTypeString = ConvertErrorCodeToMessage(jsErrorCode);
     JsValueRef exception;
     ChakraRTInterface::JsGetAndClearException(&exception);
@@ -1742,8 +1786,8 @@ Error:
     return hr;
 }
 
-WScriptJsrt::ModuleMessage::ModuleMessage(JsModuleRecord module, JsValueRef specifier)
-    : MessageBase(0), moduleRecord(module), specifier(specifier)
+WScriptJsrt::ModuleMessage::ModuleMessage(JsModuleRecord module, JsValueRef specifier, bool instantiate)
+    : MessageBase(0), moduleRecord(module), specifier(specifier), instantiate(instantiate)
 {
     ChakraRTInterface::JsAddRef(module, nullptr);
     if (specifier != nullptr)
@@ -1767,7 +1811,32 @@ HRESULT WScriptJsrt::ModuleMessage::Call(LPCSTR fileName)
     JsErrorCode errorCode;
     JsValueRef result = JS_INVALID_REFERENCE;
     HRESULT hr;
-    if (specifier == nullptr)
+    
+    if (instantiate == true)
+    {
+        if (numberOfPendingModules == 0)
+        {
+            hr = ChakraRTInterface::JsInstantiateModule(moduleRecord);
+            if (hr != JsNoError)
+            {
+                JsValueRef exceptionVar;
+                ChakraRTInterface::JsGetModuleHostInfo(moduleRecord, JsModuleHostInfo_Exception, &exceptionVar);
+                WScriptJsrt::NotifyModuleReadyCallback(moduleRecord, exceptionVar);
+            }
+        }
+        else
+        {
+
+            WScriptJsrt::ModuleMessage* moduleMessage =
+                WScriptJsrt::ModuleMessage::Create(moduleRecord, nullptr, true);
+            if (moduleMessage == nullptr)
+            {
+                return JsErrorOutOfMemory;
+            }
+            WScriptJsrt::PushMessage(moduleMessage);
+        }
+    }
+    else if (specifier == nullptr)
     {
         errorCode = ChakraRTInterface::JsModuleEvaluation(moduleRecord, &result);
         if (errorCode != JsNoError)
@@ -1828,6 +1897,7 @@ JsErrorCode WScriptJsrt::FetchImportedModuleHelper(JsModuleRecord referencingMod
         return JsNoError;
     }
 
+    ++numberOfPendingModules;
     JsErrorCode errorCode = ChakraRTInterface::JsInitializeModuleRecord(referencingModule, specifier, &moduleRecord);
     if (errorCode == JsNoError)
     {
@@ -1835,13 +1905,25 @@ JsErrorCode WScriptJsrt::FetchImportedModuleHelper(JsModuleRecord referencingMod
         InitializeModuleInfo(specifier, moduleRecord);
         moduleRecordMap[std::string(fullPath)] = moduleRecord;
         ModuleMessage* moduleMessage =
-            WScriptJsrt::ModuleMessage::Create(referencingModule, specifier);
+            WScriptJsrt::ModuleMessage::Create(referencingModule, specifier, false);
         if (moduleMessage == nullptr)
         {
             return JsErrorOutOfMemory;
         }
         WScriptJsrt::PushMessage(moduleMessage);
         *dependentModuleRecord = moduleRecord;
+
+        if (HostConfigFlags::flags.DeferModuleLinking)
+        {
+            WScriptJsrt::ModuleMessage* moduleMessage2 =
+                WScriptJsrt::ModuleMessage::Create(moduleRecord, nullptr, true);
+
+            if (moduleMessage == nullptr)
+            {
+                return JsErrorOutOfMemory;
+            }
+            WScriptJsrt::PushMessage(moduleMessage2);
+        }
     }
     return errorCode;
 }
@@ -1908,7 +1990,7 @@ JsErrorCode WScriptJsrt::NotifyModuleReadyCallback(_In_opt_ JsModuleRecord refer
     else
     {
         WScriptJsrt::ModuleMessage* moduleMessage =
-            WScriptJsrt::ModuleMessage::Create(referencingModule, nullptr);
+            WScriptJsrt::ModuleMessage::Create(referencingModule, nullptr, false);
         if (moduleMessage == nullptr)
         {
             return JsErrorOutOfMemory;

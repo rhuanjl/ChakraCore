@@ -199,6 +199,11 @@ public:
         m_queue.Insert(ListEntry(time, message));
     }
 
+    void InsertPrioritised(MessageBase *message)
+    {
+        m_queue.Insert(ListEntry(0, message));
+    }
+
     MessageBase* PopAndWait()
     {
         Assert(!m_queue.IsEmpty());

@@ -761,7 +761,7 @@ HRESULT ExecuteTest(const char* fileName)
         {
             ChakraRTInterface::JsSetHostPromiseRejectionTracker(WScriptJsrt::PromiseRejectionTrackerCallback, nullptr);
         }
-        
+
         len = strlen(fullPath);
         if (HostConfigFlags::flags.GenerateLibraryByteCodeHeaderIsEnabled)
         {

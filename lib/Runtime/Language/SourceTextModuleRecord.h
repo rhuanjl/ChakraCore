@@ -64,6 +64,9 @@ namespace Js
         void SetIsRootModule() { isRootModule = true; }
         JavascriptPromise *GetPromise() { return this->promise; }
         void SetPromise(JavascriptPromise *value) { this->promise = value; }
+        HRESULT Instantiate();
+        void SetDeferLink() { deferLinking = true; }
+        bool instantiated = false;
 
         void SetImportRecordList(ModuleImportOrExportEntryList* importList) { importRecordList = importList; }
         void SetLocalExportRecordList(ModuleImportOrExportEntryList* localExports) { localExportRecordList = localExports; }
@@ -139,6 +142,7 @@ namespace Js
         Field(uint) numPendingChildrenModule;
         Field(ExportedNames*) exportedNames;
         Field(ResolvedExportMap*) resolvedExportMap;
+        Field(bool) deferLinking;
 
         Field(Js::JavascriptFunction*) rootFunction;
         Field(void*) hostDefined;

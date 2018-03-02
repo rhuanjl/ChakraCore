@@ -53,6 +53,10 @@ JsModuleEvaluation
 JsSetModuleHostInfo
 JsGetModuleHostInfo
 JsGetModuleNamespace
+JsInstantiateModule
+JsGetImportCount
+JsGetIndexedImport
+
 JsInitializeJITServer
 
 JsCreateSharedArrayBufferWithSharedContent
