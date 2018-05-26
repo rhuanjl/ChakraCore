@@ -751,16 +751,9 @@ namespace Js
         if (requestedModuleList != nullptr)
         {
             EnsureChildModuleSet(scriptContext);
-            ArenaAllocator* allocator = scriptContext->GeneralAllocator();
-            SList<LPCOLESTR> * moduleRecords = Anew(allocator, SList<LPCOLESTR>, allocator);
 
-            // Reverse the order for the host. So, host can read the files top-down
             requestedModuleList->MapUntil([&](IdentPtr specifier) {
                 LPCOLESTR moduleName = specifier->Psz();
-                return !moduleRecords->Prepend(moduleName);
-            });
-
-            moduleRecords->MapUntil([&](LPCOLESTR moduleName) {
                 ModuleRecordBase* moduleRecordBase = nullptr;
                 SourceTextModuleRecord* moduleRecord = nullptr;
                 bool itemFound = childrenModuleSet->TryGetValue(moduleName, &moduleRecord);
@@ -787,7 +780,6 @@ namespace Js
                 }
                 return false;
             });
-            moduleRecords->Clear();
 
             if (FAILED(hr))
             {
