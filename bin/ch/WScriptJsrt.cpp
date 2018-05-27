@@ -45,6 +45,7 @@
 
 MessageQueue* WScriptJsrt::messageQueue = nullptr;
 std::map<std::string, JsModuleRecord>  WScriptJsrt::moduleRecordMap;
+std::map<std::string, WScriptJsrt::ManagedModule*>  WScriptJsrt::managedModuleMap;
 std::map<JsModuleRecord, std::string>  WScriptJsrt::moduleDirMap;
 std::map<DWORD_PTR, std::string> WScriptJsrt::scriptDirMap;
 DWORD_PTR WScriptJsrt::sourceContext = 0;
@@ -276,18 +277,38 @@ JsValueRef __stdcall WScriptJsrt::GetModuleNamespace(JsValueRef callee, bool isC
             }
             else
             {
-                auto moduleEntry = moduleRecordMap.find(fullPath);
-                if (moduleEntry == moduleRecordMap.end())
+                if (HostConfigFlags::flags.DeferModuleLinking == false)
                 {
-                    errorCode = JsErrorInvalidArgument;
-                    errorMessage = _u("Need to supply a path for an already loaded module for WScript.GetModuleNamespace");
+                    auto moduleEntry = moduleRecordMap.find(fullPath);
+                    if (moduleEntry == moduleRecordMap.end())
+                    {
+                        errorCode = JsErrorInvalidArgument;
+                        errorMessage = _u("Need to supply a path for an already loaded module for WScript.GetModuleNamespace");
+                    }
+                    else
+                    {
+                        errorCode = ChakraRTInterface::JsGetModuleNamespace(moduleEntry->second, &returnValue);
+                        if (errorCode == JsErrorModuleNotEvaluated)
+                        {
+                            errorMessage = _u("GetModuleNamespace called with un-evaluated module");
+                        }
+                    }
                 }
                 else
                 {
-                    errorCode = ChakraRTInterface::JsGetModuleNamespace(moduleEntry->second, &returnValue);
-                    if (errorCode == JsErrorModuleNotEvaluated)
+                    auto moduleEntry = managedModuleMap.find(fullPath);
+                    if (moduleEntry == managedModuleMap.end())
                     {
-                        errorMessage = _u("GetModuleNamespace called with un-evaluated module");
+                        errorCode = JsErrorInvalidArgument;
+                        errorMessage = _u("Need to supply a path for an already loaded module for WScript.GetModuleNamespace");
+                    }
+                    else
+                    {
+                        errorCode = ChakraRTInterface::JsGetModuleNamespace(moduleEntry->second->moduleRecord, &returnValue);
+                        if (errorCode == JsErrorModuleNotEvaluated)
+                        {
+                            errorMessage = _u("GetModuleNamespace called with un-evaluated module");
+                        }
                     }
                 }
             }
@@ -412,6 +433,18 @@ JsErrorCode WScriptJsrt::InitializeModuleInfo(JsValueRef specifier, JsModuleReco
             if (errorCode == JsNoError)
             {
                 errorCode = ChakraRTInterface::JsSetModuleHostInfo(moduleRecord, JsModuleHostInfo_HostDefined, specifier);
+                
+                if (errorCode == JsNoError)
+                {
+                    if (HostConfigFlags::flags.DeferModuleLinking == true)
+                    {
+                        errorCode = ChakraRTInterface::JsSetModuleHostInfo(moduleRecord, JsModuleDeferLink, specifier);
+                        if (errorCode == JsNoError)
+                        {
+                            errorCode = ChakraRTInterface::JsSetModuleHostInfo(moduleRecord, JsModuleHostInfo_ProvideModuleForInstantiationCallback, (void*)WScriptJsrt::ProvideModuleCallback);
+                        }
+                    }
+                }
             }
         }
     }
@@ -440,45 +473,87 @@ JsErrorCode WScriptJsrt::LoadModuleFromString(LPCSTR fileName, LPCSTR fileConten
     DWORD_PTR dwSourceCookie = WScriptJsrt::GetNextSourceContext();
     JsModuleRecord requestModule = JS_INVALID_REFERENCE;
     LPCSTR moduleRecordKey = fullName ? fullName : fileName;
-    auto moduleRecordEntry = moduleRecordMap.find(std::string(moduleRecordKey));
+    ManagedModule *managedModule = nullptr;
     JsErrorCode errorCode = JsNoError;
 
-    // we need to create a new moduleRecord if the specifier (fileName) is not found;
-    // otherwise we'll use the old one.
-    if (moduleRecordEntry == moduleRecordMap.end())
+    if (HostConfigFlags::flags.DeferModuleLinking == false)
     {
-        JsValueRef specifier;
-        errorCode = ChakraRTInterface::JsCreateString(
-            fileName, strlen(fileName), &specifier);
-        if (errorCode == JsNoError)
+        auto moduleRecordEntry = moduleRecordMap.find(std::string(moduleRecordKey));
+        // we need to create a new moduleRecord if the specifier (fileName) is not found;
+        // otherwise we'll use the old one.
+        if (moduleRecordEntry == moduleRecordMap.end())
         {
-            errorCode = ChakraRTInterface::JsInitializeModuleRecord(
-                nullptr, specifier, &requestModule);
-        }
-        if (errorCode == JsNoError)
-        {
-            errorCode = InitializeModuleInfo(specifier, requestModule);
-        }
-        if (errorCode == JsNoError)
-        {
-            if (fullName)
+            JsValueRef specifier;
+            errorCode = ChakraRTInterface::JsCreateString(
+                fileName, strlen(fileName), &specifier);
+            if (errorCode == JsNoError)
             {
-                GetDir(fullName, &moduleDirMap[requestModule]);
+                errorCode = ChakraRTInterface::JsInitializeModuleRecord(
+                    nullptr, specifier, &requestModule);
             }
+            if (errorCode == JsNoError)
+            {
+                errorCode = InitializeModuleInfo(specifier, requestModule);
+            }
+            if (errorCode == JsNoError)
+            {
+                if (fullName)
+                {
+                    GetDir(fullName, &moduleDirMap[requestModule]);
+                }
 
-            moduleRecordMap[std::string(moduleRecordKey)] = requestModule;
+                moduleRecordMap[std::string(moduleRecordKey)] = requestModule;
+            }
+        }
+        else
+        {
+            requestModule = moduleRecordEntry->second;
         }
     }
     else
     {
-        requestModule = moduleRecordEntry->second;
+        auto moduleRecordEntry = managedModuleMap.find(std::string(moduleRecordKey));
+        // we need to create a new moduleRecord if the specifier (fileName) is not found;
+        // otherwise we'll use the old one.
+        if (moduleRecordEntry == managedModuleMap.end())
+        {
+            JsValueRef specifier;
+            errorCode = ChakraRTInterface::JsCreateString(
+                fileName, strlen(fileName), &specifier);
+            if (errorCode == JsNoError)
+            {
+                errorCode = ChakraRTInterface::JsInitializeModuleRecord(
+                    nullptr, specifier, &requestModule);
+            }
+            if (errorCode == JsNoError)
+            {
+                errorCode = InitializeModuleInfo(specifier, requestModule);
+            }
+            if (errorCode == JsNoError)
+            {
+                if (fullName)
+                {
+                    GetDir(fullName, &moduleDirMap[requestModule]);
+                }
+                managedModule = ManagedModule::Create(requestModule, fileName, fullName);
+                managedModule->SetIsDynamicOrRoot();
+                managedModuleMap[std::string(moduleRecordKey)] = managedModule;
+                managedModule->SetEntryPoint();
+            }
+        }
+        else
+        {
+            managedModule = moduleRecordEntry->second;
+            requestModule = managedModule->moduleRecord;
+        }
     }
+
     IfJsrtErrorFailLogAndRetErrorCode(errorCode);
     JsValueRef errorObject = JS_INVALID_REFERENCE;
 
     // ParseModuleSource is sync, while additional fetch & evaluation are async.
     unsigned int fileContentLength = (fileContent == nullptr) ? 0 : (unsigned int)strlen(fileContent);
- 
+
     if (isFile && fullName)
     {
         JsValueRef moduleUrl;
@@ -486,7 +561,7 @@ JsErrorCode WScriptJsrt::LoadModuleFromString(LPCSTR fileName, LPCSTR fileConten
         errorCode = ChakraRTInterface::JsSetModuleHostInfo(requestModule, JsModuleHostInfo_Url, moduleUrl);
         IfJsrtErrorFail(errorCode, errorCode);
     }
- 
+
     errorCode = ChakraRTInterface::JsParseModuleSource(requestModule, dwSourceCookie, (LPBYTE)fileContent,
         fileContentLength, JsParseModuleSourceFlags_DataIsUTF8, &errorObject);
     if ((errorCode != JsNoError) && errorObject != JS_INVALID_REFERENCE && fileContent != nullptr && !HostConfigFlags::flags.IgnoreScriptErrorCode)
@@ -494,7 +569,35 @@ JsErrorCode WScriptJsrt::LoadModuleFromString(LPCSTR fileName, LPCSTR fileConten
         ChakraRTInterface::JsSetException(errorObject);
         return errorCode;
     }
-    return JsNoError;
+
+    errorCode = JsNoError;
+
+    if (HostConfigFlags::flags.DeferModuleLinking)
+    {        
+        unsigned int numImports = 0;
+        unsigned int i = 0;
+
+        ChakraRTInterface::JsGetImportCount(requestModule, &numImports);
+        JsValueRef specifier;
+        for (i = 0; i < numImports; ++i)
+        {
+            errorCode = ChakraRTInterface::JsGetIndexedImport(requestModule, i, &specifier);
+            if (errorCode == JsNoError)
+            {
+                errorCode = managedModule->addChild(specifier);
+            }
+        }
+        if (numImports == 0 || managedModule->GetNumChildren() == 0)
+        {
+            ManagedModuleMessage* managedMessage = WScriptJsrt::ManagedModuleMessage::Create(managedModule);
+            if (managedMessage == nullptr)
+            {
+                return JsErrorOutOfMemory;
+            }
+            WScriptJsrt::PushMessage(managedMessage);
+        }
+    }
+    return errorCode;
 }
 
 
@@ -1894,6 +1997,7 @@ JsErrorCode WScriptJsrt::FetchImportedModuleHelper(JsModuleRecord referencingMod
 {
     JsModuleRecord moduleRecord = JS_INVALID_REFERENCE;
     AutoString specifierStr;
+    ManagedModule *managedModule = nullptr;
     *dependentModuleRecord = nullptr;
 
     if (specifierStr.Initialize(specifier) != JsNoError)
@@ -1909,11 +2013,25 @@ JsErrorCode WScriptJsrt::FetchImportedModuleHelper(JsModuleRecord referencingMod
         return JsErrorInvalidArgument;
     }
 
-    auto moduleEntry = moduleRecordMap.find(std::string(fullPath));
-    if (moduleEntry != moduleRecordMap.end())
+    if (HostConfigFlags::flags.DeferModuleLinking == false)
     {
-        *dependentModuleRecord = moduleEntry->second;
-        return JsNoError;
+        auto moduleEntry = moduleRecordMap.find(std::string(fullPath));
+        if (moduleEntry != moduleRecordMap.end())
+        {
+            *dependentModuleRecord = moduleEntry->second;
+            return JsNoError;
+        }
+    }
+    else
+    {
+        auto moduleRecordEntry = managedModuleMap.find(std::string(fullPath));
+        // we need to create a new moduleRecord if the specifier (fileName) is not found;
+        // otherwise we'll use the old one.
+        if (moduleRecordEntry != managedModuleMap.end())
+        {
+            *dependentModuleRecord = moduleRecordEntry->second->moduleRecord;
+            return JsNoError;
+        }
     }
 
     JsErrorCode errorCode = ChakraRTInterface::JsInitializeModuleRecord(referencingModule, specifier, &moduleRecord);
@@ -1921,17 +2039,226 @@ JsErrorCode WScriptJsrt::FetchImportedModuleHelper(JsModuleRecord referencingMod
     {
         GetDir(fullPath, &moduleDirMap[moduleRecord]);
         InitializeModuleInfo(specifier, moduleRecord);
-        moduleRecordMap[std::string(fullPath)] = moduleRecord;
-        ModuleMessage* moduleMessage =
-            WScriptJsrt::ModuleMessage::Create(referencingModule, specifier);
-        if (moduleMessage == nullptr)
+        if (HostConfigFlags::flags.DeferModuleLinking == false)
         {
-            return JsErrorOutOfMemory;
+            moduleRecordMap[std::string(fullPath)] = moduleRecord;
+            ModuleMessage* moduleMessage =
+                WScriptJsrt::ModuleMessage::Create(referencingModule, specifier);
+            if (moduleMessage == nullptr)
+            {
+                return JsErrorOutOfMemory;
+            }
+            WScriptJsrt::PushMessage(moduleMessage);
         }
-        WScriptJsrt::PushMessage(moduleMessage);
+        else
+        {
+            managedModule = ManagedModule::Create(moduleRecord, *specifierStr, fullPath);
+            managedModule->SetIsDynamicOrRoot();
+            managedModuleMap[std::string(fullPath)] = managedModule;
+            ManagedModuleMessage* managedMessage = WScriptJsrt::ManagedModuleMessage::Create(managedModule);
+            if (managedMessage == nullptr)
+            {
+                return JsErrorOutOfMemory;
+            }
+            WScriptJsrt::PushMessage(managedMessage);
+        }
         *dependentModuleRecord = moduleRecord;
     }
     return errorCode;
+}
+
+WScriptJsrt::ManagedModule::ManagedModule(JsModuleRecord module, std::string specifier, std::string normalizedSpecifier, bool isDynamicOrRoot)
+    : moduleRecord(module), specifier(specifier), normalizedSpecifier(normalizedSpecifier), isDynamicOrRoot(isDynamicOrRoot)
+{
+    ChakraRTInterface::JsAddRef(moduleRecord, nullptr);
+}
+
+WScriptJsrt::ManagedModule::~ManagedModule()
+{
+    ChakraRTInterface::JsRelease(moduleRecord, nullptr);
+    parentMap.clear();
+}
+
+bool WScriptJsrt::ManagedModule::CheckChildren()
+{
+    if (isReady() || beingChecked)
+    {
+        return true;
+    }
+    if (state == 0)
+    {
+        return false;
+    }
+    beingChecked = true;
+    bool result = true;
+    for (int i = 0; i < numChildren && result == true; ++i)
+    {
+        if (!childModules[i]->isReady())
+        {
+            result = childModules[i]->CheckChildren();
+        }
+    }
+    beingChecked = false;
+    return result;
+}
+
+JsErrorCode WScriptJsrt::ManagedModule::Update()
+{
+    JsErrorCode error = JsNoError;
+    if (state == 0) //needs to be Parsed
+    {
+        LPCSTR fileContent = nullptr;
+        LPCSTR specifierStr = normalizedSpecifier.c_str();
+        HRESULT hr = Helpers::LoadScriptFromFile(specifierStr, fileContent);
+        if (FAILED(hr))
+        {
+            hr = Helpers::LoadScriptFromFile(specifier.c_str(), fileContent);
+        }
+
+        if (FAILED(hr))
+        {
+            if (!HostConfigFlags::flags.MuteHostErrorMsgIsEnabled)
+            {
+                fprintf(stderr, "Couldn't load file '%s'\n", specifierStr);
+            }
+            LoadScript(nullptr, specifierStr, nullptr, "module", true, WScriptJsrt::FinalizeFree, false);
+        }
+        else
+        {
+            LoadScript(nullptr, specifierStr, fileContent, "module", true, WScriptJsrt::FinalizeFree, true);
+        }
+
+        state = 1;
+        this->Update();//if there were no children (or all children already Parsed) -> GO
+    }
+    else if (state == 1)
+    {
+        if (CheckChildren())
+        {
+            if (isDynamicOrRoot)
+            {
+                ChakraRTInterface::JsInstantiateModule(moduleRecord);
+                JsValueRef result = JS_INVALID_REFERENCE;
+                error = ChakraRTInterface::JsModuleEvaluation(moduleRecord, &result);
+            }
+            
+            if (hasParents)
+            {
+                for (std::pair<std::string, ManagedModule*> element : parentMap)
+                {
+                    error = element.second->childComplete();
+                }
+            }
+            state = 2;
+        }
+    }
+Error:
+    if (error != JsNoError)
+    {
+        PrintException(normalizedSpecifier.c_str(), error);
+    }
+}
+
+JsErrorCode WScriptJsrt::ManagedModule::childComplete()
+{
+    ManagedModuleMessage* moduleMessage = WScriptJsrt::ManagedModuleMessage::Create(this);
+    if (moduleMessage == nullptr)
+    {
+        return JsErrorOutOfMemory;
+    }
+    WScriptJsrt::PushMessage(moduleMessage);
+    return JsNoError;
+}
+
+JsErrorCode WScriptJsrt::ManagedModule::addChild(JsValueRef specifier)
+{
+    ManagedModule* childModule = findModule(moduleRecord, specifier);
+    childModule->SetHasParents();
+    if (numChildren == 50)
+    {
+        // not really the right error message
+        // but for now this supports a max of 50 children
+        return JsErrorOutOfMemory;
+    }
+    if (childModule->parentMap.find(this->normalizedSpecifier) == childModule->parentMap.end())
+    {
+        childModule->parentMap[this->normalizedSpecifier] = this;
+        childModules[numChildren] = childModule;
+        ++numChildren;
+        ManagedModuleMessage* childMessage = WScriptJsrt::ManagedModuleMessage::Create(childModule);
+        WScriptJsrt::PushMessage(childMessage);
+    }
+    return JsNoError;
+}
+
+JsErrorCode WScriptJsrt::ProvideModuleCallback(_In_ JsModuleRecord referencingModule, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord)
+{
+    ManagedModule* module = WScriptJsrt::ManagedModule::findModule(referencingModule, specifier);
+
+    if (!module->CheckChildren())
+    {
+        return JsErrorInvalidArgument;
+    }
+
+    *dependentModuleRecord = module->moduleRecord;
+    return JsNoError;
+}
+
+WScriptJsrt::ManagedModule* WScriptJsrt::ManagedModule::findModule(JsValueRef parentRef, JsValueRef specifier)
+{
+    ManagedModule* module = nullptr;
+    AutoString specifierStr;
+
+    if (specifierStr.Initialize(specifier) != JsNoError)
+    {
+        return nullptr;
+    }
+
+    //find the folder we need
+    auto moduleDirEntry = moduleDirMap.find(parentRef);
+    std::string specifierFullPath = "";
+    if (moduleDirEntry != moduleDirMap.end())
+    {
+        specifierFullPath = moduleDirEntry->second;
+    }
+
+    //normalise the path
+    char fullPath[_MAX_PATH];
+    specifierFullPath += *specifierStr;
+    if (_fullpath(fullPath, specifierFullPath.c_str(), _MAX_PATH) == nullptr)
+    {
+        return nullptr;
+    }
+    //find the module record
+    auto moduleEntry = managedModuleMap.find(std::string(fullPath));
+    if (moduleEntry != managedModuleMap.end())
+    {
+        return moduleEntry->second;
+    }
+
+    //make a new ManagedModule
+    JsModuleRecord moduleRecord = JS_INVALID_REFERENCE;
+    JsErrorCode errorCode = ChakraRTInterface::JsInitializeModuleRecord(parentRef, specifier, &moduleRecord);
+
+
+    if (errorCode == JsNoError)
+    {
+        InitializeModuleInfo(specifier, moduleRecord);
+        module = ManagedModule::Create(moduleRecord, *specifierStr, fullPath);
+        managedModuleMap[fullPath] = module;
+    }
+
+    return module;
+}
+
+WScriptJsrt::ManagedModuleMessage::ManagedModuleMessage(ManagedModule* module)
+    : MessageBase(0), module(module)
+{
+}
+
+HRESULT WScriptJsrt::ManagedModuleMessage::Call(LPCSTR fileName)
+{
+    return module->Update();
 }
 
 // Callback from chakracore to fetch dependent module. In the test harness,
@@ -1969,7 +2296,7 @@ JsErrorCode WScriptJsrt::FetchImportedModuleFromScript(_In_ JsSourceContext dwRe
     return FetchImportedModuleHelper(nullptr, specifier, dependentModuleRecord);
 }
 
-// Callback from chakraCore when the module resolution is finished, either successfuly or unsuccessfully.
+// Callback from chakraCore when the module resolution is finished, either successfully or unsuccessfully.
 JsErrorCode WScriptJsrt::NotifyModuleReadyCallback(_In_opt_ JsModuleRecord referencingModule, _In_opt_ JsValueRef exceptionVar)
 {
     if (exceptionVar != nullptr)
@@ -1993,7 +2320,7 @@ JsErrorCode WScriptJsrt::NotifyModuleReadyCallback(_In_opt_ JsModuleRecord refer
         ChakraRTInterface::JsGetAndClearException(&exception);
         exception; // unused
     }
-    else
+    else if (!HostConfigFlags::flags.DeferModuleLinking)
     {
         WScriptJsrt::ModuleMessage* moduleMessage =
             WScriptJsrt::ModuleMessage::Create(referencingModule, nullptr);

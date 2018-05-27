@@ -31,6 +31,9 @@ struct JsAPIHooks
     typedef JsErrorCode (WINAPI *JsParseModuleSourcePtr)(JsModuleRecord requestModule, JsSourceContext sourceContext, byte* sourceText, unsigned int sourceLength, JsParseModuleSourceFlags sourceFlag, JsValueRef* exceptionValueRef);
     typedef JsErrorCode (WINAPI *JsModuleEvaluationPtr)(JsModuleRecord requestModule, JsValueRef* result);
     typedef JsErrorCode (WINAPI *JsGetModuleNamespacePtr)(JsModuleRecord requestModule, JsValueRef *moduleNamespace);
+    typedef JsErrorCode (WINAPI *JsInstantiateModulePtr)(JsModuleRecord requestModule);
+    typedef JsErrorCode (WINAPI *JsGetImportCountPtr)(JsModuleRecord requestModule, unsigned int *count);
+    typedef JsErrorCode (WINAPI *JsGetIndexedImportPtr)(JsModuleRecord requestModule, unsigned int index, JsValueRef *specifier);
     typedef JsErrorCode (WINAPI *JsSetModuleHostInfoPtr)(JsModuleRecord requestModule, JsModuleHostInfoKind moduleHostInfo, void* hostInfo);
     typedef JsErrorCode (WINAPI *JsGetModuleHostInfoPtr)(JsModuleRecord requestModule, JsModuleHostInfoKind moduleHostInfo, void** hostInfo);
     typedef JsErrorCode (WINAPI *JsrtCallFunctionPtr)(JsValueRef function, JsValueRef* arguments, unsigned short argumentCount, JsValueRef *result);
@@ -136,6 +139,9 @@ struct JsAPIHooks
     JsInitializeModuleRecordPtr pfJsrtInitializeModuleRecord;
     JsModuleEvaluationPtr pfJsrtModuleEvaluation;
     JsGetModuleNamespacePtr pfJsrtGetModuleNamespace;
+    JsGetImportCountPtr pfJsrtGetImportCount;
+    JsGetIndexedImportPtr pfJsrtGetIndexedImport;
+    JsInstantiateModulePtr pfJsrtInstantiateModule;
     JsSetModuleHostInfoPtr pfJsrtSetModuleHostInfo;
     JsGetModuleHostInfoPtr pfJsrtGetModuleHostInfo;
     JsrtCallFunctionPtr pfJsrtCallFunction;
@@ -395,6 +401,9 @@ public:
     }
     static JsErrorCode WINAPI JsModuleEvaluation(JsModuleRecord requestModule, JsValueRef* result) { return HOOK_JS_API(ModuleEvaluation(requestModule, result)); }
     static JsErrorCode WINAPI JsGetModuleNamespace(JsModuleRecord requestModule, JsValueRef *moduleNamespace) { return HOOK_JS_API(GetModuleNamespace(requestModule, moduleNamespace)); }
+    static JsErrorCode WINAPI JsInstantiateModule(JsModuleRecord requestModule) { return HOOK_JS_API(InstantiateModule(requestModule)); }
+    static JsErrorCode WINAPI JsGetImportCount(JsModuleRecord requestModule, unsigned int *count) { return HOOK_JS_API(GetImportCount(requestModule, count)); }
+    static JsErrorCode WINAPI JsGetIndexedImport(JsModuleRecord requestModule, unsigned int index, JsValueRef *specifier) { return HOOK_JS_API(GetIndexedImport(requestModule, index, specifier)); }
     static JsErrorCode WINAPI JsInitializeModuleRecord(JsModuleRecord referencingModule, JsValueRef normalizedSpecifier, JsModuleRecord* moduleRecord) {
         return HOOK_JS_API(InitializeModuleRecord(referencingModule, normalizedSpecifier, moduleRecord));
     }

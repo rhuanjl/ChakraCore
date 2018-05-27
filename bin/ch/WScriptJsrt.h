@@ -50,12 +50,65 @@ public:
 
     };
 
+    class ManagedModule
+    {
+    private:
+        std::string normalizedSpecifier;
+        std::string specifier;
+        uint numChildren = 0;
+        ManagedModule* childModules[50];
+        std::map<std::string, ManagedModule*> parentMap;
+        bool beingChecked = false;
+        bool isDynamicOrRoot;
+        bool hasParents = false;
+        uint state = 0;//0 = needs to be parsed, 1 = parsed, 2 = ready
+
+        ManagedModule(JsModuleRecord module, std::string specifier, std::string normalizedSpecifier, bool isDynamicOrRoot);
+
+    public:
+        ~ManagedModule();
+        JsModuleRecord moduleRecord;
+        JsErrorCode addChild(JsValueRef specifier);
+        JsErrorCode Update();
+        JsErrorCode childComplete();
+        bool CheckChildren();
+        bool isReady() { return state == 2; };
+        void SetHasParents() { hasParents = true; };
+        bool GetHasParents() { return hasParents; };
+        uint GetNumChildren() { return numChildren; };
+        void SetIsDynamicOrRoot() { isDynamicOrRoot = true; };
+        void SetEntryPoint() { state = 1; };
+        
+        static ManagedModule* Create(JsModuleRecord module, std::string specifier, std::string normalizedSpecifier, bool isDynamicOrRoot = false)
+        {
+            return new ManagedModule(module, specifier, normalizedSpecifier, isDynamicOrRoot);
+        }
+
+        static ManagedModule* findModule(JsModuleRecord parent, JsValueRef specifier);
+    };
+
+    class ManagedModuleMessage : public MessageBase
+    {
+    private:
+        ManagedModule* module;
+        ManagedModuleMessage(ManagedModule* module);
+
+    public:
+        virtual HRESULT Call(LPCSTR fileName) override;
+        
+        static ManagedModuleMessage* Create(ManagedModule* module)
+        {
+            return new ManagedModuleMessage(module);
+        }
+    };
+
     static void AddMessageQueue(MessageQueue *messageQueue);
     static void PushMessage(MessageBase *message) { messageQueue->InsertSorted(message); }
 
     static JsErrorCode FetchImportedModule(_In_ JsModuleRecord referencingModule, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
     static JsErrorCode FetchImportedModuleFromScript(_In_ DWORD_PTR dwReferencingSourceContext, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
     static JsErrorCode NotifyModuleReadyCallback(_In_opt_ JsModuleRecord referencingModule, _In_opt_ JsValueRef exceptionVar);
+    static JsErrorCode ProvideModuleCallback(_In_ JsModuleRecord referencingModule, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
     static JsErrorCode InitializeModuleCallbacks();
     static void CALLBACK PromiseContinuationCallback(JsValueRef task, void *callbackState);
     static void CALLBACK PromiseRejectionTrackerCallback(JsValueRef promise, JsValueRef reason, bool handled, void *callbackState);
@@ -138,6 +191,7 @@ private:
     static MessageQueue *messageQueue;
     static DWORD_PTR sourceContext;
     static std::map<std::string, JsModuleRecord> moduleRecordMap;
+    static std::map<std::string, WScriptJsrt::ManagedModule*> managedModuleMap;
     static std::map<JsModuleRecord, std::string> moduleDirMap;
     static std::map<DWORD_PTR, std::string> scriptDirMap;
 };

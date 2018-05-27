@@ -129,6 +129,9 @@ bool ChakraRTInterface::LoadChakraDll(ArgInfo* argInfo, HINSTANCE *outLibrary)
     m_jsApiHooks.pfJsrtGetModuleHostInfo = (JsAPIHooks::JsGetModuleHostInfoPtr)GetChakraCoreSymbol(library, "JsGetModuleHostInfo");
     m_jsApiHooks.pfJsrtModuleEvaluation = (JsAPIHooks::JsModuleEvaluationPtr)GetChakraCoreSymbol(library, "JsModuleEvaluation");
     m_jsApiHooks.pfJsrtGetModuleNamespace = (JsAPIHooks::JsGetModuleNamespacePtr)GetChakraCoreSymbol(library, "JsGetModuleNamespace");
+    m_jsApiHooks.pfJsrtInstantiateModule = (JsAPIHooks::JsInstantiateModulePtr)GetChakraCoreSymbol(library, "JsInstantiateModule");
+    m_jsApiHooks.pfJsrtGetImportCount = (JsAPIHooks::JsGetImportCountPtr)GetChakraCoreSymbol(library, "JsGetImportCount");
+    m_jsApiHooks.pfJsrtGetIndexedImport = (JsAPIHooks::JsGetIndexedImportPtr)GetChakraCoreSymbol(library, "JsGetIndexedImport");
     m_jsApiHooks.pfJsrtDiagStartDebugging = (JsAPIHooks::JsrtDiagStartDebugging)GetChakraCoreSymbol(library, "JsDiagStartDebugging");
     m_jsApiHooks.pfJsrtDiagStopDebugging = (JsAPIHooks::JsrtDiagStopDebugging)GetChakraCoreSymbol(library, "JsDiagStopDebugging");
     m_jsApiHooks.pfJsrtDiagGetSource = (JsAPIHooks::JsrtDiagGetSource)GetChakraCoreSymbol(library, "JsDiagGetSource");

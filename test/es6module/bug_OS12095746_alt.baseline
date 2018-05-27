@@ -1,0 +1,3 @@
+mod0 catch:Syntax error
+mod1 catch:Unexpected identifier after numeric literal
+mod2 catch:Unexpected identifier after numeric literal

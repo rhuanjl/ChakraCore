@@ -155,4 +155,164 @@
       <tags>exclude_jshost</tags>
     </default>
   </test>
+  <!-- second copy of all tests to cover alternate module loading mechanism -->
+  <!-- note this is only implemented with Jsrt/ch hence all tagged to exclude jshost -->
+  <test>
+    <default>
+      <files>test001.js</files>
+      <baseline/>
+      <compile-flags>-DeferModuleLinking -PrintSystemException  -es6module -es6generators -es7asyncawait -ArrayMutationTestSeed:456986689  -maxinterpretcount:1 -maxsimplejitruncount:2 -MinMemOpCount:0 -werexceptionsupport  -bgjit- -loopinterpretcount:1 -off:lossyinttypespec</compile-flags>
+      <tags>exclude_jshost</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>test002.js</files>
+      <baseline/>
+      <compile-flags>-DeferModuleLinking -PrintSystemException  -es6module -es6generators -es7asyncawait -ArrayMutationTestSeed:1580332815  -maxinterpretcount:1 -maxsimplejitruncount:2 -MinMemOpCount:0 -werexceptionsupport  -MinSwitchJumpTableSize:3 -MaxLinearStringCaseCount:2 -MaxLinearIntCaseCount:2 -force:fieldcopyprop -force:rejit -UseJITTrampoline- -force:fixdataprops -off:stackargopt -force:atom -oopjit- -force:ScriptFunctionWithInlineCache -off:lossyinttypespec -ForceArrayBTree -off:trackintusage -ForceJITCFGCheck -ForceStaticInterpreterThunk -off:cachedScope -off:DelayCapture -off:fefixedmethods -off:ArrayCheckHoist</compile-flags>
+      <tags>exclude_jshost</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>moduletest1.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module</compile-flags>
+      <tags>exclude_jshost, exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>moduletest2.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-syntax.js</files>
+      <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -ES6Module -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-syntax1.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-functionality.js</files>
+      <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -ES6Module -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>moduleUrlInError.js</files>
+      <compile-flags>-DeferModuleLinking</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>dynamic-module-functionality.js</files>
+        <compile-flags>-DeferModuleLinking -ES6Module -ESDynamicImport -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>dynamic-module-import-specifier.js</files>
+        <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -ES6Module -ESDynamicImport -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-syntax.js</files>
+      <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -ES6Module -force:deferparse -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-syntax1.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module -force:deferparse -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-namespace.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module -Es6ToStringTag -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_drt,exclude_sanitize_address,exclude_noicu</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-bugfixes.js</files>
+      <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -ES6Module -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>exportBindingLoader.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module -args summary -endargs</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>test_bug_2645.js</files>
+      <compile-flags>-DeferModuleLinking -ES6Module</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>bug_OS12095746.js</files>
+        <compile-flags>-DeferModuleLinking -MuteHostErrorMsg -IgnoreScriptErrorCode -TraceHostCallback -ES6Module -ESDynamicImport</compile-flags>
+      <tags>exclude_jshost,exclude_dynapogo,exclude_sanitize_address,exclude_drt</tags>
+      <baseline>bug_OS12095746_alt.baseline</baseline>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>bug_OS14562349.js</files>
+      <compile-flags>-DeferModuleLinking -ESDynamicImport -args summary -endargs</compile-flags>
+      <tags>exclude_jshost</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>bug_issue_3076.js</files>
+    <compile-flags>-DeferModuleLinking -force:deferparse -ESDynamicImport</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>bug_issue_3257.js</files>
+      <compile-flags>-DeferModuleLinking -ESDynamicImport</compile-flags>
+      <baseline>bug_issue_3257.baseline</baseline>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>GetModuleNamespace.js</files>
+      <compile-flags>-DeferModuleLinking -ESDynamicImport</compile-flags>
+      <tags>exclude_jshost,exclude_sanitize_address</tags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>module-load-twice.js</files>
+      <compile-flags>-DeferModuleLinking</compile-flags>
+      <tags>exclude_jshost</tags>
+    </default>
+  </test>
 </regress-exe>
