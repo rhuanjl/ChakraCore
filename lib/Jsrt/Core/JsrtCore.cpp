@@ -173,6 +173,12 @@ JsSetModuleHostInfo(
         case JsModuleHostInfo_Url:
             moduleRecord->SetModuleUrl(hostInfo);    
             break;
+        case JsModuleDeferLink:
+            moduleRecord->SetDeferLink();    
+            break;
+        case JsModuleHostInfo_ProvideModuleForInstantiationCallback:
+            currentContext->GetHostScriptContext()->SetProvideModuleForInstantiationCallback(reinterpret_cast<ProvideModuleForInstantiationCallback>(hostInfo));
+            break;
         default:
             return JsInvalidModuleHostInfoKind;
         };
@@ -220,6 +226,9 @@ JsGetModuleHostInfo(
         case JsModuleHostInfo_Url:
             *hostInfo = reinterpret_cast<void*>(moduleRecord->GetModuleUrl());
             break;
+        case JsModuleHostInfo_ProvideModuleForInstantiationCallback:
+            *hostInfo = reinterpret_cast<void*>(currentContext->GetHostScriptContext()->GetProvideModuleForInstantiationCallBack());
+            break;
         default:
             return JsInvalidModuleHostInfoKind;
         };
@@ -242,5 +251,96 @@ CHAKRA_API JsGetModuleNamespace(_In_ JsModuleRecord requestModule, _Outptr_resul
         return JsErrorModuleNotEvaluated;
     }
     *moduleNamespace = static_cast<JsValueRef>(moduleRecord->GetNamespace());
+    return JsNoError;
+}
+
+CHAKRA_API JsGetIndexedImport(_In_ JsModuleRecord requestModule, _In_ unsigned int index, _Outptr_result_maybenull_ JsValueRef *specifier)
+{
+    PARAM_NOT_NULL(specifier);
+    if (!Js::SourceTextModuleRecord::Is(requestModule))
+    {
+        return JsErrorInvalidArgument;
+    }
+    Js::SourceTextModuleRecord* moduleRecord = Js::SourceTextModuleRecord::FromHost(requestModule);
+    if (!moduleRecord->WasParsed())
+    {
+        return JsErrorInvalidArgument;
+    }
+    IdentPtrList *list = moduleRecord->GetRequestedModuleList();
+    int i = 0;
+    IdentPtr record =  nullptr;
+    if (list != nullptr)
+    {
+        list->Find([&](IdentPtr spec) {
+            if (i == index)
+            {
+                record = spec;
+                return true;
+            }
+            else
+            {
+                ++i;
+                return false;
+            }
+        });
+    }
+    if (record == nullptr)
+    {
+        return JsErrorInvalidArgument;
+    }
+    Js::ScriptContext *scriptContext = moduleRecord->GetScriptContext();
+    return ContextAPINoScriptWrapper_NoRecord([&](Js::ScriptContext *scriptContext) -> JsErrorCode {
+
+        const char16 *content = (const char16 *)record->Psz();
+        charcount_t length = wcslen(content);
+        *specifier = Js::JavascriptString::NewCopyBuffer(content, length, scriptContext);
+        
+        return JsNoError;
+    },
+    /*allowInObjectBeforeCollectCallback*/true);
+    
+}
+
+CHAKRA_API JsGetImportCount(_In_ JsModuleRecord requestModule, _Outptr_result_maybenull_ unsigned int *count)
+{
+    PARAM_NOT_NULL(count);
+    if (!Js::SourceTextModuleRecord::Is(requestModule))
+    {
+        return JsErrorInvalidArgument;
+    }
+    Js::SourceTextModuleRecord* moduleRecord = Js::SourceTextModuleRecord::FromHost(requestModule);
+    if (!moduleRecord->WasParsed())
+    {
+        return JsErrorInvalidArgument;
+    }
+    IdentPtrList *list = moduleRecord->GetRequestedModuleList();
+    unsigned int i = 0;
+    
+    if (list != nullptr)
+    {
+        IdentPtr record;
+        list->MapUntil([&](IdentPtr spec) {
+            ++i;
+            return false;
+        });
+    }
+
+    *count = i;
+    return JsNoError;
+}
+
+CHAKRA_API JsInstantiateModule(_In_ JsModuleRecord requestModule)
+{
+    if (!Js::SourceTextModuleRecord::Is(requestModule))
+    {
+        return JsErrorInvalidArgument;
+    }
+    Js::SourceTextModuleRecord* moduleRecord = Js::SourceTextModuleRecord::FromHost(requestModule);
+
+    if (FAILED(moduleRecord->Instantiate()))
+    {
+        return JsErrorInvalidArgument;
+    }
+
     return JsNoError;
 }

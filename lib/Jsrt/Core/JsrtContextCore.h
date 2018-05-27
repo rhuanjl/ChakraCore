@@ -168,6 +168,7 @@ public:
 
     HRESULT FetchImportedModule(Js::ModuleRecordBase* referencingModule, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord) override;
     HRESULT FetchImportedModuleFromScript(JsSourceContext dwReferencingSourceContext, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord) override;
+    HRESULT ProvideModuleForInstantiation(Js::ModuleRecordBase* referencingModule, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord) override;
 
     HRESULT NotifyHostAboutModuleReady(Js::ModuleRecordBase* referencingModule, Js::Var exceptionVar) override;
 
@@ -179,6 +180,9 @@ public:
 
     void SetFetchImportedModuleFromScriptCallback(FetchImportedModuleFromScriptCallBack fetchCallback) { this->fetchImportedModuleFromScriptCallback = fetchCallback; }
     FetchImportedModuleFromScriptCallBack GetFetchImportedModuleFromScriptCallback() const { return this->fetchImportedModuleFromScriptCallback; }
+
+    void SetProvideModuleForInstantiationCallback(ProvideModuleForInstantiationCallback provideCallback) { this->provideModuleForInstantiationCallback = provideCallback; }
+    ProvideModuleForInstantiationCallback GetProvideModuleForInstantiationCallBack() const { return this->provideModuleForInstantiationCallback; }
 
 #if DBG_DUMP || defined(PROFILE_EXEC) || defined(PROFILE_MEM)
     void EnsureParentInfo(Js::ScriptContext* scriptContext = NULL) override
@@ -193,5 +197,6 @@ private:
     HRESULT FetchImportedModuleHelper(Fn fetch, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord);
     FetchImportedModuleCallBack fetchImportedModuleCallback;
     FetchImportedModuleFromScriptCallBack fetchImportedModuleFromScriptCallback;
+    ProvideModuleForInstantiationCallback provideModuleForInstantiationCallback;
     NotifyModuleReadyCallback notifyModuleReadyCallback;
 };

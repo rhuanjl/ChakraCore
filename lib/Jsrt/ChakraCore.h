@@ -94,7 +94,16 @@ typedef enum JsModuleHostInfoKind
     /// <summary>
     ///     URL for use in error stack traces and debugging.
     /// </summary>
-    JsModuleHostInfo_Url = 0x6
+    JsModuleHostInfo_Url = 0x6,
+    /// <summary>
+    ///     Use deferred linking - alternate loading pathway.
+    /// </summary>
+    JsModuleDeferLink = 0x7,
+    /// <summary>
+    ///     Callback for providing dependent modules during instantiation.
+    ///     Used in deferred linking mode only.
+    /// </summary>
+    JsModuleHostInfo_ProvideModuleForInstantiationCallback = 0x8
 } JsModuleHostInfoKind;
 
 /// <summary>
@@ -169,6 +178,23 @@ typedef JsErrorCode(CHAKRA_CALLBACK * FetchImportedModuleFromScriptCallBack)(_In
 ///     Returns a JsErrorCode - note, the return value is ignored.
 /// </returns>
 typedef JsErrorCode(CHAKRA_CALLBACK * NotifyModuleReadyCallback)(_In_opt_ JsModuleRecord referencingModule, _In_opt_ JsValueRef exceptionVar);
+
+/// <summary>
+///     User implemented callback to provide module for instantiation - only in deferred linking mode.
+/// </summary>
+/// <remarks>
+///     The callback is invoked on the current runtime execution thread, therefore execution is blocked until 
+///     the callback completes. Notify the host to fetch the dependent module. This is used during instantiation
+///     in deferred linking mode. When this is called the requested module should already have been Parsed and this
+///     should simply return it.
+/// </remarks>
+/// <param name="referencingModule">The referencing module that is requesting the dependent module.</param>
+/// <param name="specifier">The specifier coming from the module source code.</param>
+/// <param name="dependentModuleRecord">The ModuleRecord of the dependent module.</param>
+/// <returns>
+///     Returns a <c>JsNoError</c> if the operation succeeded an error code otherwise.
+/// </returns>
+typedef JsErrorCode(CHAKRA_CALLBACK * ProvideModuleForInstantiationCallback)(_In_ JsModuleRecord referencingModule, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
 
 /// <summary>
 ///     A structure containing information about a native function callback.
@@ -1270,6 +1296,59 @@ CHAKRA_API
         _In_ JsParseScriptAttributes parseAttributes,
         _In_ JsValueRef parserState,
         _Out_ JsValueRef * result);
+
+/// <summary>
+///     Instantiate a Module - only for use with deferred linking Module loading.
+/// </summary>
+/// <remarks>
+///     This function links a module to all its child modules and prepares it for evaluation.
+///     In standard mode this step is performed automatically by CC.
+///     In deferred linking mode you must call this manually when all child modules have been loaded.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to instantiate.</param>
+CHAKRA_API
+ JsInstantiateModule(
+        _In_ JsModuleRecord requestModule);
+
+/// <summary>
+///     Determine how many dependencies a module has.
+/// </summary>
+/// <remarks>
+///     This function tells you how many dependencies a module has.
+///     The module must have been parsed in advance.
+///     This is intended for deferred linking mode - in standard mode this information isn't useful.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to obtain the information for.</param>
+/// <param name="count">The number of dependencies the module has.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+
+CHAKRA_API
+    JsGetImportCount(
+        _In_ JsModuleRecord requestModule,
+        _Outptr_result_maybenull_ unsigned int *count);
+
+/// <summary>
+///     Obtain the specifier for a given dependency.
+/// </summary>
+/// <remarks>
+///     This function tells you the specifier of a dependency for the requestModule.
+///     The module must have been parsed in advance.
+///     This is intended for deferred linking mode - in standard mode this information isn't useful.
+/// </remarks>
+/// <param name="requestModule">The JsModuleRecord to obtain the information for.</param>
+/// <param name="index">The dependency you want the specifirr for.</param>
+/// <param name="specifier">The specifier for the dependency.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+
+CHAKRA_API 
+    JsGetIndexedImport(
+        _In_ JsModuleRecord requestModule,
+        _In_ unsigned int index,
+        _Outptr_result_maybenull_ JsValueRef *specifier);
 
 #endif // _CHAKRACOREBUILD
 #endif // _CHAKRACORE_H_

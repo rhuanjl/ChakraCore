@@ -45,7 +45,9 @@ namespace Js
         moduleId(InvalidModuleIndex),
         localSlotCount(InvalidSlotCount),
         promise(nullptr),
-        localExportCount(0)
+        localExportCount(0),
+        deferLinking(false),
+        instantiated(false)
     {
         namespaceRecord.module = this;
         namespaceRecord.bindingName = PropertyIds::star_;
@@ -204,7 +206,7 @@ namespace Js
 
             // Notify host if current module is dynamically-loaded module, or is root module and the host hasn't been notified
             bool isScriptActive = scriptContext->GetThreadContext()->IsScriptActive();
-            if (this->promise != nullptr || (isRootModule && !hadNotifyHostReady))
+            if ((this->promise != nullptr || (isRootModule && !hadNotifyHostReady)) && !deferLinking)
             {
                 OUTPUT_TRACE_DEBUGONLY(Js::ModulePhase, _u("\t>NotifyHostAboutModuleReady %s (ParseSource error)\n"), this->GetSpecifierSz());
                 LEAVE_SCRIPT_IF(scriptContext, isScriptActive,
@@ -252,16 +254,37 @@ namespace Js
         SetLocalExportRecordList(moduleParseNode->localExportEntries);
     }
 
+    HRESULT SourceTextModuleRecord::Instantiate()
+    {
+        HRESULT hr = NOERROR;
+        if (deferLinking)
+        {
+            if (!instantiated && WasParsed())
+            {
+                instantiated = true;
+                hr = ResolveExternalModuleDependencies();
+                if (SUCCEEDED(hr) && (isRootModule || this->promise != nullptr))
+                {
+                    hr = PrepareForModuleDeclarationInitialization();
+                }
+            }
+        }
+        return hr;
+    }
+
     HRESULT SourceTextModuleRecord::PostParseProcess()
     {
         HRESULT hr = NOERROR;
         SetWasParsed();
         ImportModuleListsFromParser();
-        hr = ResolveExternalModuleDependencies();
-
-        if (SUCCEEDED(hr))
+        if (!deferLinking)
         {
-            hr = PrepareForModuleDeclarationInitialization();
+            hr = ResolveExternalModuleDependencies();
+
+            if (SUCCEEDED(hr))
+            {
+                hr = PrepareForModuleDeclarationInitialization();
+            }
         }
         return hr;
     }
@@ -293,7 +316,7 @@ namespace Js
                 }
                 else
                 {
-                    if (!hadNotifyHostReady && !WasEvaluated())
+                    if (!hadNotifyHostReady && !WasEvaluated() && !deferLinking)
                     {
                         bool isScriptActive = scriptContext->GetThreadContext()->IsScriptActive();
 
@@ -348,7 +371,7 @@ namespace Js
                 {
                     GenerateRootFunction();
                 }
-                if (!hadNotifyHostReady && !WasEvaluated())
+                if (!hadNotifyHostReady && !WasEvaluated() && !deferLinking)
                 {
                     OUTPUT_TRACE_DEBUGONLY(Js::ModulePhase, _u("\t>NotifyHostAboutModuleReady %s (PrepareForModuleDeclarationInitialization)\n"), this->GetSpecifierSz());
                     LEAVE_SCRIPT_IF(scriptContext, isScriptActive,
@@ -385,7 +408,7 @@ namespace Js
                 SourceTextModuleRecord::ResolveOrRejectDynamicImportPromise(false, this->errorObject, this->scriptContext, this);
             }
 
-            if (this->promise != nullptr || (isRootModule && !hadNotifyHostReady))
+            if ((this->promise != nullptr || (isRootModule && !hadNotifyHostReady)) && !deferLinking)
             {
                 OUTPUT_TRACE_DEBUGONLY(Js::ModulePhase, _u("\t>NotifyHostAboutModuleReady %s (OnChildModuleReady)\n"), this->GetSpecifierSz());
                 LEAVE_SCRIPT_IF(scriptContext, isScriptActive,
@@ -783,7 +806,14 @@ namespace Js
                 bool itemFound = childrenModuleSet->TryGetValue(moduleName, &moduleRecord);
                 if (!itemFound)
                 {
-                    hr = scriptContext->GetHostScriptContext()->FetchImportedModule(this, moduleName, &moduleRecordBase);
+                    if (!deferLinking)
+                    {
+                        hr = scriptContext->GetHostScriptContext()->FetchImportedModule(this, moduleName, &moduleRecordBase);
+                    }
+                    else
+                    {
+                        hr = scriptContext->GetHostScriptContext()->ProvideModuleForInstantiation(this, moduleName, &moduleRecordBase);
+                    }
                     if (FAILED(hr))
                     {
                         return true;
@@ -801,6 +831,11 @@ namespace Js
                         hr = E_FAIL;
                         return true;
                     }
+                }
+                hr = moduleRecord->Instantiate();
+                if (FAILED(hr))
+                {
+                    return true;
                 }
                 return false;
             });

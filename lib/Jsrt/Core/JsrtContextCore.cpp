@@ -104,6 +104,10 @@ void JsrtContextCore::OnScriptLoad(Js::JavascriptFunction * scriptFunction, Js::
 
 HRESULT ChakraCoreHostScriptContext::FetchImportedModule(Js::ModuleRecordBase* referencingModule, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord)
 {
+    if (fetchImportedModuleCallback == nullptr)
+    {
+        return E_INVALIDARG;
+    }
     return FetchImportedModuleHelper(
         [=](Js::JavascriptString *specifierVar, JsModuleRecord *dependentRecord) -> JsErrorCode
         {
@@ -113,6 +117,10 @@ HRESULT ChakraCoreHostScriptContext::FetchImportedModule(Js::ModuleRecordBase* r
 
 HRESULT ChakraCoreHostScriptContext::FetchImportedModuleFromScript(JsSourceContext dwReferencingSourceContext, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord)
 {
+    if (fetchImportedModuleFromScriptCallback == nullptr)
+    {
+        return E_INVALIDARG;
+    }
     return FetchImportedModuleHelper(
         [=](Js::JavascriptString *specifierVar, JsModuleRecord *dependentRecord) -> JsErrorCode
     {
@@ -120,13 +128,22 @@ HRESULT ChakraCoreHostScriptContext::FetchImportedModuleFromScript(JsSourceConte
     }, specifier, dependentModuleRecord);
 }
 
-template<typename Fn>
-HRESULT ChakraCoreHostScriptContext::FetchImportedModuleHelper(Fn fetch, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord)
+HRESULT ChakraCoreHostScriptContext::ProvideModuleForInstantiation(Js::ModuleRecordBase* referencingModule, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord)
 {
-    if (fetchImportedModuleCallback == nullptr)
+    if (provideModuleForInstantiationCallback == nullptr)
     {
         return E_INVALIDARG;
     }
+    return FetchImportedModuleHelper(
+        [=](Js::JavascriptString *specifierVar, JsModuleRecord *dependentRecord) -> JsErrorCode
+        {
+            return provideModuleForInstantiationCallback(referencingModule, specifierVar, dependentRecord);
+        }, specifier, dependentModuleRecord);
+}
+
+template<typename Fn>
+HRESULT ChakraCoreHostScriptContext::FetchImportedModuleHelper(Fn fetch, LPCOLESTR specifier, Js::ModuleRecordBase** dependentModuleRecord)
+{
     Js::JavascriptString* specifierVar = Js::JavascriptString::NewCopySz(specifier, GetScriptContext());
     JsModuleRecord dependentRecord = JS_INVALID_REFERENCE;
     {
