@@ -9945,6 +9945,39 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         JIT_HELPER_END(ImportCall);
     }
 
+    void JavascriptOperators::OP_Await(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
+    {
+        //#await
+        // 1. Let asyncContext be the running execution context.
+        // 2. Let promise be be ? PromiseResolve(%Promise%, << completion.[[Value]] >>).
+        JavascriptPromise* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
+        // 3. Let stepsFulfilled be the algorithm steps defined in Await Fulfilled Functions.
+        // 4. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[AsyncContext]] >>).
+        // 5. Set onFulfilled.[[AsyncContext]] to asyncContext.
+        // 6. Let stepsRejected be the algorithm steps defined in Await Rejected Functions.
+        // 7. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[AsyncContext]] >>).
+        // 8. Set onRejected.[[AsyncContext]] to asyncContext.
+        // 9. Perform ! PerformPromiseThen(promise, onFulfilled, onRejected).
+        JavascriptPromise::CreateThenPromise(promise, generator->GetAwaitNextFunction(), generator->GetAwaitThrowFunction(), scriptContext);
+        // 10. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+        // 11. Set the code evaluation state of asyncContext such that when evaluation is resumed with a Completion completion, the following steps of the algorithm that invoked Await will be performed, with completion available.   
+    }
+
+
+    void JavascriptOperators::OP_AsyncYieldStar(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
+    {
+        JavascriptPromise* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
+
+        JavascriptPromise::CreateThenPromise(promise, generator->EnsureAwaitYieldStarFunction(), generator->GetAwaitThrowFunction(), scriptContext);   
+    }
+
+    void JavascriptOperators::OP_AsyncYield(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
+    {
+        JavascriptPromise* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
+
+        JavascriptPromise::CreateThenPromise(promise, generator->GetAwaitYieldFunction(), generator->GetAwaitThrowFunction(), scriptContext);   
+    }
+
     Var JavascriptOperators::OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator)
     {
         JIT_HELPER_REENTRANT_HEADER(ResumeYield);

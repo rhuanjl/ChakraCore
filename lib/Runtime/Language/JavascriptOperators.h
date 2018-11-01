@@ -628,6 +628,9 @@ namespace Js
         static Var OP_LdFuncObjProto(Var aRight, ScriptContext* scriptContext);
         static Var OP_ImportCall(__in JavascriptFunction *function, __in Var specifier, __in ScriptContext* scriptContext);
 
+        static void OP_Await(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext);
+        static void OP_AsyncYieldStar(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext);
+        static void OP_AsyncYield(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext);
         static Var OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator);
 
         template <typename T>

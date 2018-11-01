@@ -234,6 +234,7 @@ namespace Js
         Field(UndeclaredBlockVariable*) undeclBlockVarSentinel;
 
         Field(DynamicType *) generatorConstructorPrototypeObjectType;
+        Field(DynamicType *) asyncGeneratorConstructorPrototypeObjectType;
         Field(DynamicType *) constructorPrototypeObjectType;
         Field(DynamicType *) heapArgumentsType;
         Field(DynamicType *) strictHeapArgumentsType;
@@ -377,6 +378,9 @@ namespace Js
         Field(JavascriptFunction*) generatorReturnFunction;
         Field(JavascriptFunction*) generatorNextFunction;
         Field(JavascriptFunction*) generatorThrowFunction;
+        Field(JavascriptFunction*) asyncGeneratorNextFunction;
+        Field(JavascriptFunction*) asyncGeneratorReturnFunction;
+        Field(JavascriptFunction*) asyncGeneratorThrowFunction;
 
         Field(JavascriptFunction*) objectValueOfFunction;
         Field(JavascriptFunction*) objectToStringFunction;
@@ -691,6 +695,7 @@ namespace Js
         DynamicType * GetWebAssemblyMemoryType() const { return webAssemblyMemoryType; }
         DynamicType * GetWebAssemblyTableType() const { return webAssemblyTableType; }
         DynamicType * GetGeneratorConstructorPrototypeObjectType() const { return generatorConstructorPrototypeObjectType; }
+        DynamicType * GetAsyncGeneratorConstructorPrototypeObjectType() const { return asyncGeneratorConstructorPrototypeObjectType; }
 
 #ifdef ENABLE_WASM
         JavascriptFunction* GetWebAssemblyQueryResponseFunction() const { return webAssemblyQueryResponseFunction; }
@@ -891,14 +896,17 @@ namespace Js
         void CacheJsrtExternalType(uintptr_t finalizeCallback, DynamicType* dynamicType);
         static DynamicTypeHandler * GetDeferredPrototypeGeneratorFunctionTypeHandler(ScriptContext* scriptContext);
         static DynamicTypeHandler * GetDeferredPrototypeAsyncFunctionTypeHandler(ScriptContext* scriptContext);
+        DynamicType * CreateDeferredPrototypeAsyncGeneratorFunctionType(JavascriptMethod entrypoint, bool isAnonymousFunction, bool isShared = false);
         DynamicType * CreateDeferredPrototypeGeneratorFunctionType(JavascriptMethod entrypoint, bool isAnonymousFunction, bool isShared = false);
         DynamicType * CreateDeferredPrototypeAsyncFunctionType(JavascriptMethod entrypoint, bool isAnonymousFunction, bool isShared = false);
 
         static DynamicTypeHandler * GetDeferredPrototypeFunctionTypeHandler(ScriptContext* scriptContext);
         static DynamicTypeHandler * GetDeferredPrototypeFunctionWithLengthTypeHandler(ScriptContext* scriptContext);
+        static DynamicTypeHandler * GetDeferredPrototypeAsyncGeneratorFunctionTypeHandler();
         static DynamicTypeHandler * GetDeferredAnonymousPrototypeFunctionWithLengthTypeHandler();
         static DynamicTypeHandler * GetDeferredAnonymousPrototypeGeneratorFunctionTypeHandler();
         static DynamicTypeHandler * GetDeferredAnonymousPrototypeAsyncFunctionTypeHandler();
+        static DynamicTypeHandler * GetDeferredAnonymousPrototypeAsyncGeneratorFunctionTypeHandler();
 
         DynamicTypeHandler * GetDeferredFunctionTypeHandler();
         DynamicTypeHandler * GetDeferredFunctionWithLengthTypeHandler();
@@ -910,6 +918,8 @@ namespace Js
         static DynamicTypeHandler * GetDeferredFunctionTypeHandlerBase();
         template<bool isNameAvailable, bool isPrototypeAvailable = true>
         static DynamicTypeHandler * GetDeferredGeneratorFunctionTypeHandlerBase();
+        template<bool isNameAvailable, bool isPrototypeAvailable = true>
+        static DynamicTypeHandler * GetDeferredAsyncGeneratorFunctionTypeHandlerBase();
         template<bool isNameAvailable>
         static DynamicTypeHandler * GetDeferredAsyncFunctionTypeHandlerBase();
 
@@ -945,6 +955,11 @@ namespace Js
         JavascriptNumber* CreateNumber(double value, RecyclerJavascriptNumberAllocator * numberAllocator);
         JavascriptGeneratorFunction* CreateGeneratorFunction(JavascriptMethod entryPoint, GeneratorVirtualScriptFunction* scriptFunction);
         JavascriptGeneratorFunction* CreateGeneratorFunction(JavascriptMethod entryPoint, bool isAnonymousFunction);
+        JavascriptAsyncGeneratorFunction* CreateAsyncGeneratorFunction(JavascriptMethod entryPoint, GeneratorVirtualScriptFunction* scriptFunction);
+        AsyncGeneratorNextProcessor* CreateAsyncGeneratorResumeNextReturnProcessorFunction(JavascriptGenerator* generator, bool isReject);
+        AsyncGeneratorNextProcessor* CreateAsyncGeneratorAwaitFunction(JavascriptGenerator* generator, bool isReject);
+        AsyncGeneratorNextProcessor* CreateAsyncGeneratorAwaitYieldFunction(JavascriptGenerator* generator, bool isYieldStar);
+        JavascriptAsyncGeneratorFunction* CreateAsyncGeneratorFunction(JavascriptMethod entryPoint, bool isAnonymousFunction);
         JavascriptAsyncFunction* CreateAsyncFunction(JavascriptMethod entryPoint, GeneratorVirtualScriptFunction* scriptFunction);
         JavascriptAsyncFunction* CreateAsyncFunction(JavascriptMethod entryPoint, bool isAnonymousFunction);
         JavascriptExternalFunction* CreateExternalFunction(ExternalMethod entryPointer, PropertyId nameId, Var signature, UINT64 flags, bool isLengthAvailable = false);
@@ -968,6 +983,7 @@ namespace Js
 #endif
 
         DynamicObject* CreateGeneratorConstructorPrototypeObject();
+        DynamicObject* CreateAsyncGeneratorConstructorPrototypeObject();
         DynamicObject* CreateConstructorPrototypeObject(JavascriptFunction * constructor);
         DynamicObject* CreateObject(const bool allowObjectHeaderInlining = false, const PropertyIndex requestedInlineSlotCapacity = 0);
         DynamicObject* CreateObject(DynamicTypeHandler * typeHandler);
@@ -1014,6 +1030,9 @@ namespace Js
         JavascriptFunction* EnsureGeneratorReturnFunction();
         JavascriptFunction* EnsureGeneratorNextFunction();
         JavascriptFunction* EnsureGeneratorThrowFunction();
+        JavascriptFunction* EnsureAsyncGeneratorNextFunction();
+        JavascriptFunction* EnsureAsyncGeneratorReturnFunction();
+        JavascriptFunction* EnsureAsyncGeneratorThrowFunction();
         JavascriptFunction* EnsureArrayPrototypeForEachFunction();
         JavascriptFunction* EnsureArrayPrototypeKeysFunction();
         JavascriptFunction* EnsureArrayPrototypeEntriesFunction();
@@ -1171,6 +1190,7 @@ namespace Js
         STANDARD_INIT(Promise);
         STANDARD_INIT(GeneratorFunction);
         STANDARD_INIT(AsyncFunction);
+        STANDARD_INIT(AsyncGeneratorFunction);
         STANDARD_INIT(WebAssemblyCompileError);
         STANDARD_INIT(WebAssemblyRuntimeError);
         STANDARD_INIT(WebAssemblyLinkError);
@@ -1205,7 +1225,7 @@ namespace Js
 #ifdef ENABLE_PROJECTION
         void InitializeWinRTPromiseConstructor();
 #endif
-
+        static bool __cdecl JavascriptLibrary::InitializeAsyncIteratorPrototype(DynamicObject* asyncIteratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
         static bool __cdecl InitializeIteratorPrototype(DynamicObject* iteratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
         static bool __cdecl InitializeArrayIteratorPrototype(DynamicObject* arrayIteratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
         static bool __cdecl InitializeMapIteratorPrototype(DynamicObject* mapIteratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
@@ -1213,6 +1233,7 @@ namespace Js
         static bool __cdecl InitializeStringIteratorPrototype(DynamicObject* stringIteratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
 
         static bool __cdecl InitializeGeneratorPrototype(DynamicObject* generatorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
+        static bool __cdecl InitializeAsyncGeneratorPrototype(DynamicObject* asyncGeneratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
 
         static bool __cdecl InitializeAsyncFunction(DynamicObject *function, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
 
@@ -1227,6 +1248,7 @@ namespace Js
 
         template<uint cacheSlotCount> EnumeratorCache* GetEnumeratorCache(Type* type, Field(EnumeratorCache*)* cacheSlots);
 
+        static bool __cdecl InitializeAsyncGeneratorFunction(DynamicObject* function, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
         static bool __cdecl InitializeGeneratorFunction(DynamicObject* function, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
 
         static size_t const LibraryFunctionArgC[BuiltinFunction::Count + 1];
