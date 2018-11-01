@@ -6626,7 +6626,10 @@ void Parser::ParseFncName(ParseNodeFnc * pnodeFnc, ushort flags, IdentPtr* pFncN
     {
         if (pnodeFnc->IsGenerator())
         {
-            Error(ERRsyntax);
+            if (!m_scriptContext->GetConfig()->IsES2018AsyncIterationEnabled())
+            {
+                Error(ERRExperimental);
+            }
         }
         pnodeFnc->SetIsAsync();
     }

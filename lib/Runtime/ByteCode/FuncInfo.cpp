@@ -170,6 +170,11 @@ BOOL FuncInfo::IsDerivedClassConstructor() const
     return root->IsDerivedClassConstructor();
 }
 
+bool FuncInfo::IsAsyncGenerator() const
+{
+    return (root->IsAsync() && root->IsGenerator());
+}
+
 Scope *
 FuncInfo::GetGlobalBlockScope() const
 {

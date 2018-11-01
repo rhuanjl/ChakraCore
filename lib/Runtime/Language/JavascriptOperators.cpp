@@ -9953,6 +9953,8 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
 
         if (iterator != nullptr) // yield*
         {
+            // tag yield star as async generators need special handling for them
+            yieldData->isYieldStar = true;
             ScriptContext* scriptContext = iterator->GetScriptContext();
             PropertyId propertyId = isNext ? PropertyIds::next : isThrow ? PropertyIds::throw_ : PropertyIds::return_;
             Var prop = JavascriptOperators::GetProperty(iterator, propertyId, scriptContext);
