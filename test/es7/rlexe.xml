@@ -101,4 +101,16 @@
       <compile-flags>-ESSymbolDescription -args summary -endargs</compile-flags>
     </default>
   </test>
+  <test>
+    <default>
+      <files>async-generator-apis.js</files>
+      <compile-flags>-ES2018AsyncIteration -args summary -endargs</compile-flags>
+    </default>
+  </test>
+  <test>
+    <default>
+      <files>async-generator-functionality.js</files>
+      <compile-flags>-ES2018AsyncIteration -args summary -endargs</compile-flags>
+    </default>
+  </test>
 </regress-exe>
