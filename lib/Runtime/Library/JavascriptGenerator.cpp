@@ -364,9 +364,9 @@ namespace Js
         ARGUMENTS(args, callInfo);
         Assert(!(callInfo.Flags & CallFlags_New));
         AssertOrFailFastMsg(args.Info.Count > 1, "Should never call EntryAsyncGeneratorAwait without a parameter");
-        
+
         AsyncGeneratorNextProcessor* resumeNextReturnProcessor = VarTo<AsyncGeneratorNextProcessor>(function);
-        
+
         ResumeYieldData yieldData(args[1], RecyclerNew(scriptContext->GetRecycler(), JavascriptExceptionObject, args[1], scriptContext, nullptr));
         resumeNextReturnProcessor->GetGenerator()->CallAsyncGenerator(&yieldData);
         return scriptContext->GetLibrary()->GetUndefined();
@@ -379,9 +379,9 @@ namespace Js
         ARGUMENTS(args, callInfo);
         Assert(!(callInfo.Flags & CallFlags_New));
         AssertOrFailFastMsg(args.Info.Count > 1, "Should never call EntryAsyncGeneratorAwait without a parameter");
-        
+
         AsyncGeneratorNextProcessor* resumeNextReturnProcessor = VarTo<AsyncGeneratorNextProcessor>(function);
-        
+
         ResumeYieldData yieldData(args.Values[1], nullptr);
         resumeNextReturnProcessor->GetGenerator()->CallAsyncGenerator(&yieldData);
         return scriptContext->GetLibrary()->GetUndefined();
