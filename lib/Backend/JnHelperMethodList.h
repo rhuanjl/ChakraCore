@@ -527,6 +527,9 @@ HELPERCALLCHK(LdFuncObjProto,      Js::JavascriptOperators::OP_LdFuncObjProto, A
 HELPERCALLCHK(ImportCall,          Js::JavascriptOperators::OP_ImportCall, 0)
 
 HELPERCALLCHK(ResumeYield,   Js::JavascriptOperators::OP_ResumeYield, AttrCanThrow)
+HELPERCALLCHK(AsyncYieldStar,   Js::InterpreterStackFrame::OP_AsyncYieldStar, 0)
+HELPERCALLCHK(AsyncYield,   Js::InterpreterStackFrame::OP_AsyncYield, 0)
+HELPERCALLCHK(Await,   Js::InterpreterStackFrame::OP_Await, 0)
 
 #if DBG
 HELPERCALL(IntRangeCheckFailure, Js::JavascriptNativeOperators::IntRangeCheckFailure, AttrCanNotBeReentrant)
