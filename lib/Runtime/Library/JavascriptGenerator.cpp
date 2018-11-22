@@ -512,7 +512,6 @@ namespace Js
                 if (next->exceptionObj->IsGeneratorReturnException())
                 {
                     // 1. Set generator.[[AsyncGeneratorState]] to "awaiting-return".
-                    SetState(GeneratorState::AwaitingReturn);
                     // 2. Let promise be be ? PromiseResolve(%Promise%, << completion.[[Value]] >>).
                     // 3. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
                     // 4. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
@@ -561,11 +560,12 @@ namespace Js
 
     void JavascriptGenerator::ProcessAsyncGeneratorReturn(Var value, ScriptContext* scriptContext)
     {
+        SetState(GeneratorState::AwaitingReturn);
+
         JavascriptLibrary* library = scriptContext->GetLibrary();
         JavascriptPromise* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
 
         RecyclableObject* onFulfilled = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, false);
-
         RecyclableObject* onRejected = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, true);
 
         JavascriptPromise::CreateThenPromise(promise, onFulfilled, onRejected, scriptContext);
