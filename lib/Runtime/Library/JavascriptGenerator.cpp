@@ -309,53 +309,6 @@ namespace Js
             RecyclerNew(scriptContext->GetRecycler(), JavascriptExceptionObject, input, scriptContext, nullptr), _u("AsyncGenerator.prototype.throw"));
     }
 
-    void JavascriptGenerator::ProcessAsyncGeneratorAwait(Var value)
-    {
-        ScriptContext* scriptContext = this->GetScriptContext();
-        JavascriptLibrary* library = scriptContext->GetLibrary();
-
-        //#await
-        // 1. Let asyncContext be the running execution context.
-        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        // 3. Perform ! Call(promiseCapability.[[Resolve]], undefined, << promise >>).
-        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
-        // 4. Let stepsFulfilled be the algorithm steps defined in Await Fulfilled Functions.
-        // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[AsyncContext]] >>).
-        RecyclableObject* onFulfilled = library->CreateAsyncGeneratorAwaitFunction(this, false);
-        // 6. Set onFulfilled.[[AsyncContext]] to asyncContext.
-        // 7. Let stepsRejected be the algorithm steps defined in Await Rejected Functions.
-        // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[AsyncContext]] >>).
-        RecyclableObject* onRejected = library->CreateAsyncGeneratorAwaitFunction(this, true);
-        // 9. Set onRejected.[[AsyncContext]] to asyncContext.
-        // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
-        JavascriptPromise::CreateThenPromise(promise, onFulfilled, onRejected, scriptContext);
-        // 11. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-        // 12. Set the code evaluation state of asyncContext such that when evaluation is resumed with a Completion completion, the following steps of the algorithm that invoked Await will be performed, with completion available.
-    }
-
-    void JavascriptGenerator::ProcessAsyncGeneratorYield(Var value, bool isYieldStar)
-    {
-        ScriptContext* scriptContext = this->GetScriptContext();
-        JavascriptLibrary* library = scriptContext->GetLibrary();
-
-        //#await
-        // 1. Let asyncContext be the running execution context.
-        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        // 3. Perform ! Call(promiseCapability.[[Resolve]], undefined, << promise >>).
-        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
-        // 4. Let stepsFulfilled be the algorithm steps defined in Await Fulfilled Functions.
-        // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[AsyncContext]] >>).
-        RecyclableObject* continuation = library->CreateAsyncGeneratorAwaitYieldFunction(this, isYieldStar);
-        // 6. Set onFulfilled.[[AsyncContext]] to asyncContext.
-        // 7. Let stepsRejected be the algorithm steps defined in Await Rejected Functions.
-        // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[AsyncContext]] >>).
-        // 9. Set onRejected.[[AsyncContext]] to asyncContext.
-        // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
-        JavascriptPromise::CreateThenPromise(promise, continuation, continuation, scriptContext);
-        // 11. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-        // 12. Set the code evaluation state of asyncContext such that when evaluation is resumed with a Completion completion, the following steps of the algorithm that invoked Await will be performed, with completion available.
-    }
-
 
     Var JavascriptGenerator::EntryAsyncGeneratorAwaitReject(RecyclableObject* function, CallInfo callInfo, ...)
     {
@@ -442,31 +395,12 @@ namespace Js
 
             if (nextOffset != endOffset - 1)
             {
-                // specifically check for yieldStar
-                if (yieldData->isYieldStar)
-                {
-                    ProcessAsyncGeneratorYield(result, true);
-                    return;
-                }
-                if (JavascriptOperators::IsUndefined(result))
-                {
-                    printf("it's undefined\n");
-                }
-                RecyclableObject* resultObject = VarTo<RecyclableObject>(result);
-                Var value = JavascriptOperators::GetProperty(resultObject, PropertyIds::value, scriptContext);
-                // await is signified by omitting the done property from the object
-                if (JavascriptOperators::HasProperty(resultObject, PropertyIds::done))
-                {
-                    ProcessAsyncGeneratorYield(value, false);
-                    return;
-                }
-                //ProcessAsyncGeneratorAwait(value);
                 return;
             }
         }
 
         this->SetState(GeneratorState::Completed);
-        AsyncGeneratorResolve(result, true);
+        ProcessAsyncGeneratorReturn(result, scriptContext);
     }
 
     Var JavascriptGenerator::EntryAsyncGeneratorAwaitYield(RecyclableObject* function, CallInfo callInfo, ...)
@@ -499,11 +433,12 @@ namespace Js
         {
             RecyclableObject* yieldData = UnsafeVarTo<RecyclableObject>(args[1]);
             Var value = JavascriptOperators::GetProperty(yieldData, PropertyIds::value, scriptContext);
-            generator->ProcessAsyncGeneratorYield(value, false);
+
+            JavascriptOperators::OP_AsyncYield(generator, value, scriptContext);
             return scriptContext->GetLibrary()->GetUndefined();
         }
         Var error = generator->CreateTypeError(JSERR_NonObjectFromIterable, scriptContext, _u("yield*"));
-        generator->ProcessAsyncGeneratorYield(error, false);
+        JavascriptOperators::OP_AsyncYield(generator, error, scriptContext);
         return scriptContext->GetLibrary()->GetUndefined();
     }
 
@@ -580,18 +515,15 @@ namespace Js
                     SetState(GeneratorState::AwaitingReturn);
                     // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
                     // 3. Perform ! Call(promiseCapability.[[Resolve]], undefined, << completion.[[Value]] >>).
-                    JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(next->data, this->GetScriptContext()));
                     // 4. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
                     // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
                     // 6. Set onFulfilled.[[Generator]] to generator.
-                    RecyclableObject* onFulfilled = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, false);
                     // 7. Let stepsRejected be the algorithm steps defined in AsyncGeneratorResumeNext Return Processor Rejected Functions.
                     // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[Generator]] >>).
                     // 9. Set onRejected.[[Generator]] to generator.
-                    RecyclableObject* onRejected = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, true);
                     // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
-                    JavascriptPromise::CreateThenPromise(promise, onFulfilled, onRejected, scriptContext);
                     // 11. Return undefined.
+                    ProcessAsyncGeneratorReturn(next->data, scriptContext);
                     return;
                 }
                 // ii. Else,
@@ -628,44 +560,42 @@ namespace Js
         // 21. Return undefined.
     }
 
-    RuntimeFunction* JavascriptGenerator::EnsureAwaitNextFunction()
+    void JavascriptGenerator::ProcessAsyncGeneratorReturn(Var value, ScriptContext* scriptContext)
     {
-        if (awaitNextFunction == nullptr)
-        {
-            JavascriptLibrary* library = this->GetScriptContext()->GetLibrary();
-            awaitNextFunction = library->CreateAsyncGeneratorAwaitFunction(this, false);
-        }
-
-        return awaitNextFunction;
+        JavascriptLibrary* library = scriptContext->GetLibrary();
+        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
+        // 4. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
+        // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
+        // 6. Set onFulfilled.[[Generator]] to generator.
+        RecyclableObject* onFulfilled = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, false);
+        // 7. Let stepsRejected be the algorithm steps defined in AsyncGeneratorResumeNext Return Processor Rejected Functions.
+        // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[Generator]] >>).
+        // 9. Set onRejected.[[Generator]] to generator.
+        RecyclableObject* onRejected = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, true);
+        // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
+        JavascriptPromise::CreateThenPromise(promise, onFulfilled, onRejected, scriptContext);
     }
 
-    RuntimeFunction* JavascriptGenerator::EnsureAwaitThrowFunction()
+    RuntimeFunction* JavascriptGenerator::EnsureAwaitYieldStarFunction()
     {
-        if (awaitThrowFunction == nullptr)
+        if (awaitYieldStarFunction == nullptr)
         {
-            JavascriptLibrary* library = this->GetScriptContext()->GetLibrary();
-            awaitThrowFunction = library->CreateAsyncGeneratorAwaitFunction(this, true);
+            JavascriptLibrary* library = GetScriptContext()->GetLibrary();
+            awaitYieldStarFunction = library->CreateAsyncGeneratorAwaitYieldFunction(this, true);
         }
-
-        return awaitThrowFunction;
+        return awaitYieldStarFunction;
     }
-
-    AsyncGeneratorQueue* JavascriptGenerator::EnsureAsyncGeneratorQueue()
-    {
-        AssertMsg(isAsync, "Should not add Async Generator Queue to non-async generator");
-        if (asyncGeneratorQueue == nullptr)
-        {
-            Recycler* recycler = this->GetScriptContext()->GetRecycler();
-            asyncGeneratorQueue = RecyclerNew(recycler, AsyncGeneratorQueue, recycler);
-        }
-
-        return asyncGeneratorQueue;
-    }
-
 
     void JavascriptGenerator::InitialiseAsyncGenerator(ScriptContext* scriptContext)
     {
         AssertMsg(isAsync, "Should not call InitialiseAsyncGenerator on a non-async generator");
+        Recycler* recycler = scriptContext->GetRecycler();
+        JavascriptLibrary* library = scriptContext->GetLibrary();
+        asyncGeneratorQueue = RecyclerNew(recycler, AsyncGeneratorQueue, recycler);
+        awaitThrowFunction = library->CreateAsyncGeneratorAwaitFunction(this, true);
+        awaitNextFunction = library->CreateAsyncGeneratorAwaitFunction(this, false);
+        awaitYieldFunction = library->CreateAsyncGeneratorAwaitYieldFunction(this, false);
+
         ResumeYieldData data(scriptContext->GetLibrary()->GetUndefined(), nullptr);
         Var thunkArgs[] = { this, &data };
         Arguments arguments(_countof(thunkArgs), thunkArgs);

@@ -9945,9 +9945,8 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         JIT_HELPER_END(ImportCall);
     }
 
-    void JavascriptOperators::OP_Await(ResumeYieldData* yieldData, Var value, ScriptContext* scriptContext)
+    void JavascriptOperators::OP_Await(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
     {
-        JavascriptGenerator* generator = yieldData->generator;
         //#await
         // 1. Let asyncContext be the running execution context.
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
@@ -9960,9 +9959,24 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[AsyncContext]] >>).
         // 9. Set onRejected.[[AsyncContext]] to asyncContext.
         // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
-        JavascriptPromise::CreateThenPromise(promise, generator->EnsureAwaitNextFunction(), generator->EnsureAwaitThrowFunction(), scriptContext);
+        JavascriptPromise::CreateThenPromise(promise, generator->GetAwaitNextFunction(), generator->GetAwaitThrowFunction(), scriptContext);
         // 11. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
         // 12. Set the code evaluation state of asyncContext such that when evaluation is resumed with a Completion completion, the following steps of the algorithm that invoked Await will be performed, with completion available.   
+    }
+
+
+    void JavascriptOperators::OP_AsyncYieldStar(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
+    {
+        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
+
+        JavascriptPromise::CreateThenPromise(promise, generator->EnsureAwaitYieldStarFunction(), generator->GetAwaitThrowFunction(), scriptContext);   
+    }
+
+    void JavascriptOperators::OP_AsyncYield(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext)
+    {
+        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
+
+        JavascriptPromise::CreateThenPromise(promise, generator->GetAwaitYieldFunction(), generator->GetAwaitThrowFunction(), scriptContext);   
     }
 
     Var JavascriptOperators::OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator)
@@ -9974,7 +9988,6 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         if (iterator != nullptr) // yield*
         {
             // tag yield star as async generators need special handling for them
-            yieldData->isYieldStar = true;
             ScriptContext* scriptContext = iterator->GetScriptContext();
             PropertyId propertyId = isNext ? PropertyIds::next : isThrow ? PropertyIds::throw_ : PropertyIds::return_;
             Var prop = JavascriptOperators::GetProperty(iterator, propertyId, scriptContext);

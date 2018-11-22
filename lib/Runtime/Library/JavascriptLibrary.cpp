@@ -6218,7 +6218,6 @@ namespace Js
         DynamicType* type = DynamicType::New(scriptContext, TypeIds_Function, functionPrototype, entryPoint, GetDeferredAnonymousFunctionTypeHandler());
 
         AsyncGeneratorNextProcessor* function = RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, AsyncGeneratorNextProcessor, type, functionInfo, generator);
-        function->SetPropertyWithAttributes(PropertyIds::length, TaggedInt::ToVarUnchecked(1), PropertyConfigurable, nullptr);
 
         return function;
     }

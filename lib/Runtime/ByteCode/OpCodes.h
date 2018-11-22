@@ -230,6 +230,8 @@ MACRO_BACKEND_ONLY(     EHThrow,            Reg1,           OpSideEffect|OpPostO
 MACRO_WMS(              Throw,              Reg1,           OpSideEffect|OpNoFallThrough|OpPostOpDbgBailOut)    // Throw exception
 MACRO(                  Ret,                Empty,          OpSideEffect|OpUseAllFields|OpNoFallThrough)        // Return from function
 MACRO_EXTEND_WMS(       Await,              Reg2,           OpSideEffect|OpUseAllFields)                        // Await from async function
+MACRO_EXTEND_WMS(       AsyncYield,         Reg2,           OpSideEffect|OpUseAllFields)                        // Await from async function
+MACRO_EXTEND_WMS(       AsyncYieldStar,     Reg2,           OpSideEffect|OpUseAllFields)                        // Await from async function
 MACRO_WMS(              Yield,              Reg2,           OpSideEffect|OpUseAllFields)                        // Yield from generator function
 MACRO_WMS(              ResumeYield,        Reg2,           OpSideEffect)
 MACRO_WMS(              ResumeYieldStar,    Reg3,           OpSideEffect)

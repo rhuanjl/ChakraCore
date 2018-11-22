@@ -13,7 +13,6 @@ namespace Js
         Var data;
         JavascriptExceptionObject* exceptionObj;
         JavascriptGenerator* generator = nullptr;
-        bool isYieldStar = false;
 
         ResumeYieldData(JavascriptGenerator* generator, Var data, JavascriptExceptionObject* exceptionObj) : generator(generator), data(data), exceptionObj(exceptionObj) { }
         ResumeYieldData(Var data, JavascriptExceptionObject* exceptionObj) : data(data), exceptionObj(exceptionObj) { }
@@ -66,6 +65,8 @@ namespace Js
         Field(AsyncGeneratorQueue*) asyncGeneratorQueue;
         Field(RuntimeFunction*) awaitNextFunction;
         Field(RuntimeFunction*) awaitThrowFunction;
+        Field(RuntimeFunction*) awaitYieldFunction;
+        Field(RuntimeFunction*) awaitYieldStarFunction;
         Field(bool) isAsync = false;
         Field(int) queuePosition = 0;
         Field(int) queueLength = 0;
@@ -88,13 +89,13 @@ namespace Js
         bool IsSuspendedStart() const { return state == GeneratorState::SuspendedStart || (state == GeneratorState::Suspended && this->frame == nullptr); }
         void EnqueueRequest(AsyncGeneratorRequest* request)
         {
-            EnsureAsyncGeneratorQueue()->Add(request);
+            asyncGeneratorQueue->Add(request);
             ++queueLength;
         }
         AsyncGeneratorRequest* GetRequest (bool pop)
         {
             Assert(HasRequests());
-            AsyncGeneratorRequest* request = EnsureAsyncGeneratorQueue()->Item(queuePosition);
+            AsyncGeneratorRequest* request = asyncGeneratorQueue->Item(queuePosition);
             if (pop)
             {
                 ++queuePosition;
@@ -105,16 +106,16 @@ namespace Js
 
         void SetIsAsync() { isAsync = true; }
         bool GetIsAsync() const { return isAsync; }
-        RuntimeFunction* EnsureAwaitNextFunction();
-        RuntimeFunction* EnsureAwaitThrowFunction();
-        AsyncGeneratorQueue* EnsureAsyncGeneratorQueue();
+        RuntimeFunction* GetAwaitNextFunction() { return awaitNextFunction; }
+        RuntimeFunction* GetAwaitThrowFunction() { return awaitThrowFunction; }
+        RuntimeFunction* GetAwaitYieldFunction() { return awaitYieldFunction; }
+        RuntimeFunction* EnsureAwaitYieldStarFunction();
+        void ProcessAsyncGeneratorReturn(Var value, ScriptContext* scriptContext);
         void AsyncGeneratorResumeNext();
         void AsyncGeneratorReject(Var reason);
         void AsyncGeneratorResolve(Var value, bool done);
         void CallAsyncGenerator(ResumeYieldData* yieldData);
         void InitialiseAsyncGenerator(ScriptContext* scriptContext);
-        void ProcessAsyncGeneratorYield(Var value, bool isYieldStar);
-        void ProcessAsyncGeneratorAwait(Var value);
 
         void SetScriptFunction(ScriptFunction* sf)
         {
