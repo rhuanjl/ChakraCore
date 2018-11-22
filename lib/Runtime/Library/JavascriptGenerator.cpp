@@ -513,16 +513,15 @@ namespace Js
                 {
                     // 1. Set generator.[[AsyncGeneratorState]] to "awaiting-return".
                     SetState(GeneratorState::AwaitingReturn);
-                    // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-                    // 3. Perform ! Call(promiseCapability.[[Resolve]], undefined, << completion.[[Value]] >>).
-                    // 4. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
-                    // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
-                    // 6. Set onFulfilled.[[Generator]] to generator.
-                    // 7. Let stepsRejected be the algorithm steps defined in AsyncGeneratorResumeNext Return Processor Rejected Functions.
-                    // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[Generator]] >>).
-                    // 9. Set onRejected.[[Generator]] to generator.
-                    // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
-                    // 11. Return undefined.
+                    // 2. Let promise be be ? PromiseResolve(%Promise%, << completion.[[Value]] >>).
+                    // 3. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
+                    // 4. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
+                    // 5. Set onFulfilled.[[Generator]] to generator.
+                    // 6. Let stepsRejected be the algorithm steps defined in AsyncGeneratorResumeNext Return Processor Rejected Functions.
+                    // 7. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[Generator]] >>).
+                    // 8. Set onRejected.[[Generator]] to generator.
+                    // 9. Perform ! PerformPromiseThen(promise, onFulfilled, onRejected).
+                    // 10. Return undefined.
                     ProcessAsyncGeneratorReturn(next->data, scriptContext);
                     return;
                 }
@@ -563,16 +562,12 @@ namespace Js
     void JavascriptGenerator::ProcessAsyncGeneratorReturn(Var value, ScriptContext* scriptContext)
     {
         JavascriptLibrary* library = scriptContext->GetLibrary();
-        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
-        // 4. Let stepsFulfilled be the algorithm steps defined in AsyncGeneratorResumeNext Return  Processor Fulfilled Functions.
-        // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[Generator]] >>).
-        // 6. Set onFulfilled.[[Generator]] to generator.
+        JavascriptPromise* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
+
         RecyclableObject* onFulfilled = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, false);
-        // 7. Let stepsRejected be the algorithm steps defined in AsyncGeneratorResumeNext Return Processor Rejected Functions.
-        // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[Generator]] >>).
-        // 9. Set onRejected.[[Generator]] to generator.
+
         RecyclableObject* onRejected = library->CreateAsyncGeneratorResumeNextReturnProcessorFunction(this, true);
-        // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
+
         JavascriptPromise::CreateThenPromise(promise, onFulfilled, onRejected, scriptContext);
     }
 
