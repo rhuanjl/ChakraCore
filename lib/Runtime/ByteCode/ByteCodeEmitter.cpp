@@ -10113,16 +10113,22 @@ void EmitYield(Js::RegSlot inputLocation, Js::RegSlot resultLocation, ByteCodeGe
     // returned by the iterable's next/return/throw method. Otherwise, it is the yielded value.
     if (yieldStarIterator == Js::Constants::NoRegister)
     {
-        byteCodeGenerator->Writer()->Reg1(Js::OpCode::NewScObjectSimple, funcInfo->yieldRegister);
-
-        uint cacheId = funcInfo->FindOrAddInlineCacheId(funcInfo->yieldRegister, Js::PropertyIds::value, false, true);
-        byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::StFld, inputLocation, funcInfo->yieldRegister, cacheId);
-
-        // if this is an Async Generator and await is used skip the done property to mark this
         if (!isAsyncGeneratorAwait)
         {
+            byteCodeGenerator->Writer()->Reg1(Js::OpCode::NewScObjectSimple, funcInfo->yieldRegister);
+
+            uint cacheId = funcInfo->FindOrAddInlineCacheId(funcInfo->yieldRegister, Js::PropertyIds::value, false, true);
+            byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::StFld, inputLocation, funcInfo->yieldRegister, cacheId);
+
             cacheId = funcInfo->FindOrAddInlineCacheId(funcInfo->yieldRegister, Js::PropertyIds::done, false, true);
             byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::StFld, funcInfo->falseConstantRegister, funcInfo->yieldRegister, cacheId);
+        }
+        else
+        {
+            // if this is an Async Generator and await is used emit the await and emit undefined as the yielded value
+
+            byteCodeGenerator->Writer()->Reg2(Js::OpCode::Await, funcInfo->yieldRegister, inputLocation);
+            byteCodeGenerator->Writer()->Reg2(Js::OpCode::Ld_A, funcInfo->yieldRegister, funcInfo->undefinedConstantRegister);
         }
     }
     else

@@ -12,8 +12,10 @@ namespace Js
     {
         Var data;
         JavascriptExceptionObject* exceptionObj;
+        JavascriptGenerator* generator = nullptr;
         bool isYieldStar = false;
 
+        ResumeYieldData(JavascriptGenerator* generator, Var data, JavascriptExceptionObject* exceptionObj) : generator(generator), data(data), exceptionObj(exceptionObj) { }
         ResumeYieldData(Var data, JavascriptExceptionObject* exceptionObj) : data(data), exceptionObj(exceptionObj) { }
     };
 
@@ -62,6 +64,8 @@ namespace Js
         Field(Arguments) args;
         Field(ScriptFunction*) scriptFunction;
         Field(AsyncGeneratorQueue*) asyncGeneratorQueue;
+        Field(RuntimeFunction*) awaitNextFunction;
+        Field(RuntimeFunction*) awaitThrowFunction;
         Field(bool) isAsync = false;
         Field(int) queuePosition = 0;
         Field(int) queueLength = 0;
@@ -71,7 +75,6 @@ namespace Js
 
         Var CallGenerator(ResumeYieldData* yieldData, const char16* apiNameForErrorMessage);
         JavascriptGenerator(DynamicType* type, Arguments& args, ScriptFunction* scriptFunction);
-        void ProcessAsyncGeneratorAwait(Var value);
 
     public:
         static JavascriptGenerator* New(Recycler* recycler, DynamicType* generatorType, Arguments& args, ScriptFunction* scriptFunction);
@@ -102,6 +105,8 @@ namespace Js
 
         void SetIsAsync() { isAsync = true; }
         bool GetIsAsync() const { return isAsync; }
+        RuntimeFunction* EnsureAwaitNextFunction();
+        RuntimeFunction* EnsureAwaitThrowFunction();
         AsyncGeneratorQueue* EnsureAsyncGeneratorQueue();
         void AsyncGeneratorResumeNext();
         void AsyncGeneratorReject(Var reason);
@@ -109,6 +114,7 @@ namespace Js
         void CallAsyncGenerator(ResumeYieldData* yieldData);
         void InitialiseAsyncGenerator(ScriptContext* scriptContext);
         void ProcessAsyncGeneratorYield(Var value, bool isYieldStar);
+        void ProcessAsyncGeneratorAwait(Var value);
 
         void SetScriptFunction(ScriptFunction* sf)
         {

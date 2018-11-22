@@ -770,6 +770,7 @@ namespace Js
         void OP_ResumeCatch();
         void OP_ResumeFinally(const byte* ip, Js::JumpOffset jumpOffset, RegSlot exceptionRegSlot, RegSlot offsetRegSlot);
         inline Var OP_ResumeYield(Var yieldDataVar, RegSlot yieldStarIterator = Js::Constants::NoRegister);
+        void OP_Await(Var yieldDataVar, Var value, ScriptContext* scriptContext);
         template <typename T> void OP_IsInst(const unaligned T * playout);
         template <class T> void OP_InitClass(const unaligned OpLayoutT_Class<T> * playout);
         inline Var OP_LdHomeObj(ScriptContext * scriptContext);

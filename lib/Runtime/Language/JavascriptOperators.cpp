@@ -9945,6 +9945,26 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         JIT_HELPER_END(ImportCall);
     }
 
+    void JavascriptOperators::OP_Await(ResumeYieldData* yieldData, Var value, ScriptContext* scriptContext)
+    {
+        JavascriptGenerator* generator = yieldData->generator;
+        //#await
+        // 1. Let asyncContext be the running execution context.
+        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+        // 3. Perform ! Call(promiseCapability.[[Resolve]], undefined, << promise >>).
+        JavascriptPromise* promise = UnsafeVarTo<JavascriptPromise>(JavascriptPromise::CreateResolvedPromise(value, scriptContext));
+        // 4. Let stepsFulfilled be the algorithm steps defined in Await Fulfilled Functions.
+        // 5. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, << [[AsyncContext]] >>).
+        // 6. Set onFulfilled.[[AsyncContext]] to asyncContext.
+        // 7. Let stepsRejected be the algorithm steps defined in Await Rejected Functions.
+        // 8. Let onRejected be CreateBuiltinFunction(stepsRejected, << [[AsyncContext]] >>).
+        // 9. Set onRejected.[[AsyncContext]] to asyncContext.
+        // 10. Perform ! PerformPromiseThen(promiseCapability.[[Promise]], onFulfilled, onRejected).
+        JavascriptPromise::CreateThenPromise(promise, generator->EnsureAwaitNextFunction(), generator->EnsureAwaitThrowFunction(), scriptContext);
+        // 11. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+        // 12. Set the code evaluation state of asyncContext such that when evaluation is resumed with a Completion completion, the following steps of the algorithm that invoked Await will be performed, with completion available.   
+    }
+
     Var JavascriptOperators::OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator)
     {
         JIT_HELPER_REENTRANT_HEADER(ResumeYield);

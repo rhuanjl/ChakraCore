@@ -392,6 +392,7 @@ namespace Js
         ScriptContext* scriptContext = this->GetScriptContext();
         Var result = nullptr;
         JavascriptExceptionObject *exception = nullptr;
+        yieldData->generator = this;
         AssertMsg(isAsync, "Should not call CallAsyncGenerator on a non-async generator");
         {
             // RAII helper to set the state of the generator to completed if an exception is thrown
@@ -447,7 +448,10 @@ namespace Js
                     ProcessAsyncGeneratorYield(result, true);
                     return;
                 }
-
+                if (JavascriptOperators::IsUndefined(result))
+                {
+                    printf("it's undefined\n");
+                }
                 RecyclableObject* resultObject = VarTo<RecyclableObject>(result);
                 Var value = JavascriptOperators::GetProperty(resultObject, PropertyIds::value, scriptContext);
                 // await is signified by omitting the done property from the object
@@ -456,7 +460,7 @@ namespace Js
                     ProcessAsyncGeneratorYield(value, false);
                     return;
                 }
-                ProcessAsyncGeneratorAwait(value);
+                //ProcessAsyncGeneratorAwait(value);
                 return;
             }
         }
@@ -624,16 +628,37 @@ namespace Js
         // 21. Return undefined.
     }
 
+    RuntimeFunction* JavascriptGenerator::EnsureAwaitNextFunction()
+    {
+        if (awaitNextFunction == nullptr)
+        {
+            JavascriptLibrary* library = this->GetScriptContext()->GetLibrary();
+            awaitNextFunction = library->CreateAsyncGeneratorAwaitFunction(this, false);
+        }
+
+        return awaitNextFunction;
+    }
+
+    RuntimeFunction* JavascriptGenerator::EnsureAwaitThrowFunction()
+    {
+        if (awaitThrowFunction == nullptr)
+        {
+            JavascriptLibrary* library = this->GetScriptContext()->GetLibrary();
+            awaitThrowFunction = library->CreateAsyncGeneratorAwaitFunction(this, true);
+        }
+
+        return awaitThrowFunction;
+    }
+
     AsyncGeneratorQueue* JavascriptGenerator::EnsureAsyncGeneratorQueue()
     {
         AssertMsg(isAsync, "Should not add Async Generator Queue to non-async generator");
-        if (asyncGeneratorQueue != nullptr)
+        if (asyncGeneratorQueue == nullptr)
         {
-            return asyncGeneratorQueue;
+            Recycler* recycler = this->GetScriptContext()->GetRecycler();
+            asyncGeneratorQueue = RecyclerNew(recycler, AsyncGeneratorQueue, recycler);
         }
 
-        Recycler* recycler = this->GetScriptContext()->GetRecycler();
-        asyncGeneratorQueue = RecyclerNew(recycler, AsyncGeneratorQueue, recycler);
         return asyncGeneratorQueue;
     }
 

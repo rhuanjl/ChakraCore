@@ -408,6 +408,16 @@
         break; \
     }
 
+#define PROCESS_A1A1NonVartoXXMem(name, func) PROCESS_A1A1NonVartoXXMem_COMMON(name, func,)
+
+#define PROCESS_A1A1NonVartoXXMem_COMMON(name, func, suffix) \
+    case OpCode::name: \
+    { \
+        PROCESS_READ_LAYOUT(name, Reg2, suffix); \
+        func(GetNonVarReg(playout->R0), GetReg(playout->R1), GetScriptContext()); \
+        break; \
+    }
+
 #define PROCESS_A2A2NonVartoXXMem(name, func) PROCESS_A2A2NonVartoXXMem_COMMON(name, func,)
 
 #define PROCESS_A2A2NonVartoXXMem_COMMON(name, func, suffix) \
@@ -9352,6 +9362,13 @@ skipThunk:
     void* InterpreterStackFrame::OP_LdArgCnt()
     {
         return (void*)m_inSlotsCount;
+    }
+
+    void InterpreterStackFrame::OP_Await(Var yieldDataVar, Var value, ScriptContext* scriptContext)
+    {
+        ResumeYieldData* yieldData = static_cast<ResumeYieldData*>(yieldDataVar);
+
+        return JavascriptOperators::OP_Await(yieldData, value, scriptContext);
     }
 
     Var InterpreterStackFrame::OP_ResumeYield(Var yieldDataVar, RegSlot yieldStarIterator)

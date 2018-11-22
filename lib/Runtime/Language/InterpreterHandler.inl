@@ -386,6 +386,7 @@ EXDEF3_WMS(CUSTOM,                  InitClass,                  OP_InitClass, Cl
 EXDEF2_WMS(TRYBR2,                  TryFinallyWithYield,        OP_TryFinallyWithYield)
 EXDEF2    (EMPTY,                   ResumeCatch,                OP_ResumeCatch)
 EXDEF2_WMS(TRYBR2,                  ResumeFinally,              OP_ResumeFinally)
+EXDEF2_WMS(A1A1NonVartoXXMem,       Await,                      OP_Await)
   DEF2_WMS(A1NonVarToA1,            ResumeYield,                OP_ResumeYield)
   DEF2_WMS(A2NonVarToA1Reg,         ResumeYieldStar,            OP_ResumeYield)
 EXDEF2    (W1,                      RuntimeTypeError,           JavascriptExceptionOperators::OP_RuntimeTypeError)
