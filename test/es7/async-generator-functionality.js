@@ -108,6 +108,22 @@ const tests = [
             AddPromise(this.name, "yield* from array 4", gen.next(), {value : 5, done : false});
             AddPromise(this.name, "yield* from array 5", gen.next(), {done : true});
         }
+    },
+    {
+        name : "Yield rejected promise",
+        body() {
+            async function* agf (a) {
+                yield a;
+                yield Promise.reject("reason");
+                print("Should not be printed");
+                yield 10;
+            }
+            const param = "parameter";
+            const gen = agf(param);
+            AddPromise(this.name, "yield from array before promise rejected", gen.next(), {value : param, done : false});
+            AddPromise(this.name, "yield a rejected promise, should reject", gen.next(), "reason", true);
+            AddPromise(this.name, "yield after rejected promise - iterator should be closed", gen.next(), {done : true});
+        }
     }
 ];
 
