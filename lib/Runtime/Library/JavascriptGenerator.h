@@ -14,7 +14,6 @@ namespace Js
         JavascriptExceptionObject* exceptionObj;
         JavascriptGenerator* generator = nullptr;
 
-        ResumeYieldData(JavascriptGenerator* generator, Var data, JavascriptExceptionObject* exceptionObj) : generator(generator), data(data), exceptionObj(exceptionObj) { }
         ResumeYieldData(Var data, JavascriptExceptionObject* exceptionObj) : data(data), exceptionObj(exceptionObj) { }
     };
 
