@@ -381,6 +381,11 @@ namespace Js
         Field(JavascriptFunction*) asyncGeneratorNextFunction;
         Field(JavascriptFunction*) asyncGeneratorReturnFunction;
         Field(JavascriptFunction*) asyncGeneratorThrowFunction;
+        Field(JavascriptFunction*) asyncFromSyncIteratorNextFunction;
+        Field(JavascriptFunction*) asyncFromSyncIteratorReturnFunction;
+        Field(JavascriptFunction*) asyncFromSyncIteratorThrowFunction;
+        Field(RuntimeFunction*) asyncFromSyncIteratorValueUnwrapFalseFunction;
+        Field(RuntimeFunction*) asyncFromSyncIteratorValueUnwrapTrueFunction;
 
         Field(JavascriptFunction*) objectValueOfFunction;
         Field(JavascriptFunction*) objectToStringFunction;
@@ -887,6 +892,7 @@ namespace Js
         JavascriptSymbol* CreateSymbol(const PropertyRecord* propertyRecord);
         JavascriptPromise* CreatePromise();
         JavascriptGenerator* CreateGenerator(Arguments& args, ScriptFunction* scriptFunction, RecyclableObject* prototype);
+        JavascriptAsyncFromSyncIterator* CreateAsyncFromSyncIterator(RecyclableObject* syncIterator);
         JavascriptFunction* CreateNonProfiledFunction(FunctionInfo * functionInfo);
         template <class MethodType>
         JavascriptExternalFunction* CreateIdMappedExternalFunction(MethodType entryPoint, DynamicType *pPrototypeType);
@@ -948,6 +954,7 @@ namespace Js
         GeneratorVirtualScriptFunction * CreateGeneratorVirtualScriptFunction(FunctionProxy* proxy);
 
         DynamicType * CreateGeneratorType(RecyclableObject* prototype);
+        DynamicType * CreateAsyncFromSyncIteratorType();
 
 #if 0
         JavascriptNumber* CreateNumber(double value);
@@ -1033,6 +1040,11 @@ namespace Js
         JavascriptFunction* EnsureAsyncGeneratorNextFunction();
         JavascriptFunction* EnsureAsyncGeneratorReturnFunction();
         JavascriptFunction* EnsureAsyncGeneratorThrowFunction();
+        JavascriptFunction* EnsureAsyncFromSyncIteratorNextFunction();
+        JavascriptFunction* EnsureAsyncFromSyncIteratorThrowFunction();
+        JavascriptFunction* EnsureAsyncFromSyncIteratorReturnFunction();
+        RuntimeFunction*    EnsureAsyncFromSyncIteratorValueUnwrapTrueFunction();
+        RuntimeFunction*    EnsureAsyncFromSyncIteratorValueUnwrapFalseFunction();
         JavascriptFunction* EnsureArrayPrototypeForEachFunction();
         JavascriptFunction* EnsureArrayPrototypeKeysFunction();
         JavascriptFunction* EnsureArrayPrototypeEntriesFunction();
@@ -1234,6 +1246,7 @@ namespace Js
 
         static bool __cdecl InitializeGeneratorPrototype(DynamicObject* generatorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
         static bool __cdecl InitializeAsyncGeneratorPrototype(DynamicObject* asyncGeneratorPrototype, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
+        static bool __cdecl InitializeAsyncFromSyncIteratorPrototype(DynamicObject* asyncFromSyncIteratorProtototype, DeferredTypeHandlerBase* typeHandler, DeferredInitializeMode mode);
 
         static bool __cdecl InitializeAsyncFunction(DynamicObject *function, DeferredTypeHandlerBase * typeHandler, DeferredInitializeMode mode);
 

@@ -427,6 +427,10 @@ namespace Js
             asyncGeneratorPrototype = DynamicObject::New(recycler,
                 DynamicType::New(scriptContext, TypeIds_Object, asyncIteratorPrototype, nullptr,
                 DeferredTypeHandler<InitializeAsyncGeneratorPrototype, DefaultDeferredTypeFilter, true>::GetDefaultInstance()));
+
+            asyncFromSyncIteratorProtototype = DynamicObject::New(recycler,
+                DynamicType::New(scriptContext, TypeIds_Object, asyncIteratorPrototype, nullptr,
+                DeferredTypeHandler<InitializeAsyncFromSyncIteratorPrototype, DefaultDeferredTypeFilter, true>::GetDefaultInstance())); 
         }
     }
 
@@ -2689,6 +2693,34 @@ namespace Js
         return asyncGeneratorThrowFunction;
     }
 
+    JavascriptFunction* JavascriptLibrary::EnsureAsyncFromSyncIteratorNextFunction()
+    {
+        if (asyncFromSyncIteratorNextFunction == nullptr)
+        {
+            asyncFromSyncIteratorNextFunction = DefaultCreateFunction(&JavascriptAsyncFromSyncIterator::EntryInfo::Next, 1, nullptr, nullptr, PropertyIds::next);
+        }
+        return asyncFromSyncIteratorNextFunction;
+    }
+
+    JavascriptFunction* JavascriptLibrary::EnsureAsyncFromSyncIteratorReturnFunction()
+    {
+        if (asyncFromSyncIteratorReturnFunction == nullptr)
+        {
+            asyncFromSyncIteratorReturnFunction = DefaultCreateFunction(&JavascriptAsyncFromSyncIterator::EntryInfo::Return, 1, nullptr, nullptr, PropertyIds::return_);
+        }
+        return asyncFromSyncIteratorReturnFunction;
+    }
+
+    JavascriptFunction* JavascriptLibrary::EnsureAsyncFromSyncIteratorThrowFunction()
+    {
+        if (asyncFromSyncIteratorThrowFunction == nullptr)
+        {
+            asyncFromSyncIteratorThrowFunction = DefaultCreateFunction(&JavascriptAsyncFromSyncIterator::EntryInfo::Throw, 1, nullptr, nullptr, PropertyIds::throw_);
+        }
+        return asyncFromSyncIteratorThrowFunction;
+    }
+
+
     JavascriptFunction* JavascriptLibrary::EnsureGeneratorNextFunction()
     {
         if (generatorNextFunction == nullptr)
@@ -2787,6 +2819,22 @@ namespace Js
         library->AddMember(asyncGeneratorPrototype, PropertyIds::throw_, library->EnsureAsyncGeneratorThrowFunction(), PropertyBuiltInMethodDefaults);
 
         asyncGeneratorPrototype->SetHasNoEnumerableProperties(true);
+
+        return true;
+    }
+
+    bool JavascriptLibrary::InitializeAsyncFromSyncIteratorPrototype(DynamicObject* asyncFromSyncIteratorProtototype, DeferredTypeHandlerBase* typeHandler, DeferredInitializeMode mode)
+    {
+        JavascriptLibrary* library = asyncFromSyncIteratorProtototype->GetLibrary();
+        Assert(library->GetScriptContext()->GetConfig()->IsES2018AsyncIterationEnabled());
+        typeHandler->Convert(asyncFromSyncIteratorProtototype, mode, 3);
+        // note per spec this also has a toStringTag but it is not observable at runtime so omitted
+
+        library->AddMember(asyncFromSyncIteratorProtototype, PropertyIds::return_, library->EnsureAsyncFromSyncIteratorReturnFunction(), PropertyBuiltInMethodDefaults);
+        library->AddMember(asyncFromSyncIteratorProtototype, PropertyIds::next, library->EnsureAsyncFromSyncIteratorNextFunction(), PropertyBuiltInMethodDefaults);
+        library->AddMember(asyncFromSyncIteratorProtototype, PropertyIds::throw_, library->EnsureAsyncFromSyncIteratorThrowFunction(), PropertyBuiltInMethodDefaults);
+
+        asyncFromSyncIteratorProtototype->SetHasNoEnumerableProperties(true);
 
         return true;
     }
@@ -6203,10 +6251,46 @@ namespace Js
         return DynamicType::New(scriptContext, TypeIds_Generator, prototype, nullptr, NullTypeHandler<false>::GetDefaultInstance());
     }
 
+    DynamicType * JavascriptLibrary::CreateAsyncFromSyncIteratorType()
+    {
+        return DynamicType::New(scriptContext, TypeIds_AsyncFromSyncIterator, asyncFromSyncIteratorProtototype, nullptr, NullTypeHandler<false>::GetDefaultInstance());
+    }
+
     template <class MethodType>
     JavascriptExternalFunction* JavascriptLibrary::CreateIdMappedExternalFunction(MethodType entryPoint, DynamicType *pPrototypeType)
     {
         return RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, JavascriptExternalFunction, entryPoint, pPrototypeType);
+    }
+
+
+    RuntimeFunction* JavascriptLibrary::EnsureAsyncFromSyncIteratorValueUnwrapFalseFunction()
+    {
+        Assert(scriptContext->GetConfig()->IsES2018AsyncIterationEnabled());
+        if (asyncFromSyncIteratorValueUnwrapFalseFunction == nullptr)
+        {
+            JavascriptMethod entryPoint = JavascriptAsyncFromSyncIterator::EntryAsyncFromSyncIteratorValueUnwrapFalseFunction;
+            FunctionInfo* functionInfo = RecyclerNew(this->GetRecycler(), FunctionInfo, entryPoint);
+            DynamicType* type = DynamicType::New(scriptContext, TypeIds_Function, functionPrototype, entryPoint, GetDeferredAnonymousFunctionTypeHandler());
+
+            asyncFromSyncIteratorValueUnwrapFalseFunction = RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, RuntimeFunction, type, functionInfo);
+        }
+
+        return asyncFromSyncIteratorValueUnwrapFalseFunction;
+    }
+
+    RuntimeFunction* JavascriptLibrary::EnsureAsyncFromSyncIteratorValueUnwrapTrueFunction()
+    {
+        Assert(scriptContext->GetConfig()->IsES2018AsyncIterationEnabled());
+        if (asyncFromSyncIteratorValueUnwrapTrueFunction == nullptr)
+        {
+            JavascriptMethod entryPoint = JavascriptAsyncFromSyncIterator::EntryAsyncFromSyncIteratorValueUnwrapTrueFunction;
+            FunctionInfo* functionInfo = RecyclerNew(this->GetRecycler(), FunctionInfo, entryPoint);
+            DynamicType* type = DynamicType::New(scriptContext, TypeIds_Function, functionPrototype, entryPoint, GetDeferredAnonymousFunctionTypeHandler());
+
+            asyncFromSyncIteratorValueUnwrapTrueFunction = RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, RuntimeFunction, type, functionInfo);
+        }
+
+        return asyncFromSyncIteratorValueUnwrapTrueFunction;
     }
 
     AsyncGeneratorNextProcessor* JavascriptLibrary::CreateAsyncGeneratorResumeNextReturnProcessorFunction(JavascriptGenerator* generator, bool isReject)
@@ -6264,6 +6348,15 @@ namespace Js
         DynamicType* type = CreateDeferredPrototypeAsyncGeneratorFunctionType(entryPoint, isAnonymousFunction);
 
         return RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, JavascriptAsyncGeneratorFunction, type, nullptr);
+    }
+
+    JavascriptAsyncFromSyncIterator* JavascriptLibrary::CreateAsyncFromSyncIterator(RecyclableObject* syncIterator)
+    {
+        Assert(scriptContext->GetConfig()->IsES2018AsyncIterationEnabled());
+
+        DynamicType* type = CreateAsyncFromSyncIteratorType();
+
+        return RecyclerNew(this->GetRecycler(), JavascriptAsyncFromSyncIterator, type, syncIterator);
     }
 
     JavascriptGeneratorFunction* JavascriptLibrary::CreateGeneratorFunction(JavascriptMethod entryPoint, GeneratorVirtualScriptFunction* scriptFunction)

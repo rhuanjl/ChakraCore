@@ -632,6 +632,7 @@ namespace Js
         static void OP_AsyncYieldStar(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext);
         static void OP_AsyncYield(JavascriptGenerator* generator, Var value, ScriptContext* scriptContext);
         static Var OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator);
+        static Var OP_NewAsyncFromSyncIterator(Var syncIterator, ScriptContext* scriptContext);
 
         template <typename T>
         static void * JitRecyclerAlloc(DECLSPEC_GUARD_OVERFLOW size_t size, Recycler* recycler)
