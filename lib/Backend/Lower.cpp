@@ -2919,10 +2919,22 @@ Lowerer::LowerRange(IR::Instr *instrStart, IR::Instr *instrEnd, bool defaultDoFa
             break;
         }
 
+        case Js::OpCode::NewAsyncFromSyncIterator:
+        {
+            IR::Opnd *src1Opnd = instr->UnlinkSrc1();
+
+            LoadScriptContext(instr);
+            m_lowererMD.LoadHelperArgument(instr, src1Opnd);
+            m_lowererMD.ChangeToHelperCall(instr, IR::HelperNewAsyncFromSyncIterator);
+
+            break;
+        }
+
         case Js::OpCode::Await:
         {
             IR::Opnd *srcOpnd1 = instr->UnlinkSrc1();
             IR::Opnd *srcOpnd2 = instr->UnlinkSrc2();
+            LoadScriptContext(instr);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd2);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd1);
             m_lowererMD.ChangeToHelperCall(instr, IR::HelperAwait);
@@ -2933,6 +2945,7 @@ Lowerer::LowerRange(IR::Instr *instrStart, IR::Instr *instrEnd, bool defaultDoFa
         {
             IR::Opnd *srcOpnd1 = instr->UnlinkSrc1();
             IR::Opnd *srcOpnd2 = instr->UnlinkSrc2();
+            LoadScriptContext(instr);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd2);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd1);
             m_lowererMD.ChangeToHelperCall(instr, IR::HelperAsyncYield);
@@ -2943,6 +2956,7 @@ Lowerer::LowerRange(IR::Instr *instrStart, IR::Instr *instrEnd, bool defaultDoFa
         {
             IR::Opnd *srcOpnd1 = instr->UnlinkSrc1();
             IR::Opnd *srcOpnd2 = instr->UnlinkSrc2();
+            LoadScriptContext(instr);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd2);
             m_lowererMD.LoadHelperArgument(instr, srcOpnd1);
             m_lowererMD.ChangeToHelperCall(instr, IR::HelperAsyncYieldStar);

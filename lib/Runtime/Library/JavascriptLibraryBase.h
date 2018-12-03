@@ -274,6 +274,7 @@ namespace Js
         Field(DynamicObject*) asyncFunctionPrototype;          // aka %AsyncFunctionPrototype%
         Field(DynamicObject*) asyncGeneratorPrototype;         // aka %AsyncGeneratorPrototype%
         Field(DynamicObject*) asyncGeneratorFunctionPrototype; // aka %AsyncGeneratorFunctionPrototype%
+        Field(DynamicObject*) asyncFromSyncIteratorProtototype;
 
         Field(DynamicObject*) errorPrototype;
         Field(DynamicObject*) evalErrorPrototype;

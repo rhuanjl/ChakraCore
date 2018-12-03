@@ -174,8 +174,7 @@ namespace Js
 
     public:
         AsyncGeneratorNextProcessor(DynamicType* type, FunctionInfo* functionInfo, JavascriptGenerator* generator)
-            : RuntimeFunction(type, functionInfo), generator(generator)
-        { }
+            : RuntimeFunction(type, functionInfo), generator(generator) { }
 
         inline JavascriptGenerator* GetGenerator() { return this->generator; }
 

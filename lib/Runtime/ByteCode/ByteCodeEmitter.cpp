@@ -9372,7 +9372,13 @@ void EmitGetIterator(Js::RegSlot iteratorLocation, Js::RegSlot iterableLocation,
         byteCodeGenerator->Writer()->Br(skipLabel);
 
         byteCodeGenerator->Writer()->MarkLabel(hasAsyncIterator);
-        EmitInvoke(iteratorLocation, iterableLocation, Js::PropertyIds::_symbolIterator, byteCodeGenerator, funcInfo);
+
+        // async iterator not found - use the sync iterator and then use CreateAsyncFromSyncIterator on it
+        Js::RegSlot syncIterator = funcInfo->AcquireTmpRegister();
+        EmitGetIterator(syncIterator, iterableLocation, byteCodeGenerator, funcInfo, false);
+        byteCodeGenerator->Writer()->Reg2(Js::OpCode::NewAsyncFromSyncIterator, iteratorLocation, syncIterator);
+        funcInfo->ReleaseTmpRegister(syncIterator);
+
         byteCodeGenerator->Writer()->MarkLabel(skipLabel);
     }
 
@@ -9698,6 +9704,7 @@ void EmitForInOrForOf(ParseNodeForInOrForOf *loopNode, ByteCodeGenerator *byteCo
 
     EmitIteratorNext(loopNode->itemLocation, loopNode->location, Js::Constants::NoRegister, byteCodeGenerator, funcInfo);
 
+    // if this is a for-await-of then await the iterator next result
     if (isForAwaitOf)
     {
         EmitYield(loopNode->itemLocation, loopNode->itemLocation, byteCodeGenerator, funcInfo, funcInfo->IsAsyncGenerator(), true);

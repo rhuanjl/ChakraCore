@@ -103,6 +103,7 @@ namespace Js
     class JavascriptEnumeratorIterator;
     class JavascriptArrayIterator;
     enum class JavascriptArrayIteratorKind;
+    class JavascriptAsyncFromSyncIterator;
     class JavascriptMapIterator;
     enum class JavascriptMapIteratorKind;
     class JavascriptSetIterator;
