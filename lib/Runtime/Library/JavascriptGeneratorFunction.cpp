@@ -200,9 +200,9 @@ using namespace Js;
         DynamicObject* prototype = scriptContext->GetLibrary()->CreateAsyncGeneratorConstructorPrototypeObject();
         JavascriptGenerator* generator = scriptContext->GetLibrary()->CreateGenerator(heapArgs, asyncGeneratorFunction->scriptFunction, prototype);
         generator->SetIsAsync();
+        generator->InitialiseAsyncGenerator(scriptContext);
         // Set the prototype from constructor
         JavascriptOperators::OrdinaryCreateFromConstructor(function, generator, prototype, scriptContext);
-        generator->InitialiseAsyncGenerator(scriptContext);
         return generator;
     }
 
