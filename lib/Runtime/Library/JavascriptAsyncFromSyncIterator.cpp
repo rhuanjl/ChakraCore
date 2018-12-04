@@ -8,6 +8,7 @@ namespace Js
 {
     Var JavascriptAsyncFromSyncIterator::AsyncFromSyncIteratorContinuation(RecyclableObject* result, ScriptContext* scriptContext)
     {
+        JavascriptLibrary* library = scriptContext->GetLibrary();
         // 1. Let done be IteratorComplete(result).
         // 2. IfAbruptRejectPromise(done, promiseCapability).
         bool done;
@@ -43,16 +44,16 @@ namespace Js
         RecyclableObject* onFulfilled;
         if (done)
         {
-            onFulfilled = scriptContext->GetLibrary()->EnsureAsyncFromSyncIteratorValueUnwrapTrueFunction();
+            onFulfilled = library->EnsureAsyncFromSyncIteratorValueUnwrapTrueFunction();
         }
         else
         {
-            onFulfilled = scriptContext->GetLibrary()->EnsureAsyncFromSyncIteratorValueUnwrapFalseFunction();
+            onFulfilled = library->EnsureAsyncFromSyncIteratorValueUnwrapFalseFunction();
         }
 
         // 9. Perform ! PerformPromiseThen(valueWrapper, onFulfilled, undefined, promiseCapability).
         // 10. Return promiseCapability.[[Promise]].
-        return JavascriptPromise::CreateThenPromise(valueWrapper, onFulfilled, nullptr, scriptContext);
+        return JavascriptPromise::CreateThenPromise(valueWrapper, onFulfilled, library->GetThrowerFunction(), scriptContext);
     }
 
     Var JavascriptAsyncFromSyncIterator::EntryAsyncFromSyncIteratorValueUnwrapTrueFunction(RecyclableObject* function, CallInfo callInfo, ...)

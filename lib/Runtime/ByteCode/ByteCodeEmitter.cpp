@@ -2696,8 +2696,8 @@ void ByteCodeGenerator::EmitDefaultArgs(FuncInfo *funcInfo, ParseNodeFnc *pnodeF
         }
     };
 
-    // If the function is async, we wrap the default arguments in a try catch and reject a Promise in case of error.
-    if (pnodeFnc->IsAsync())
+    // If the function is async (but not an async generator), we wrap the default arguments in a try catch and reject a Promise in case of error.
+    if (pnodeFnc->IsAsync() && !pnodeFnc->IsGenerator())
     {
         uint cacheId;
         Js::ByteCodeLabel catchLabel = m_writer.DefineLabel();
@@ -9400,7 +9400,18 @@ void EmitGetIterator(Js::RegSlot iteratorLocation, Js::RegSlot iterableLocation,
 
         byteCodeGenerator->Writer()->BrProperty(Js::OpCode::BrOnNoProperty, hasAsyncIterator, iterableLocation, Js::PropertyIds::_symbolAsyncIterator);
 
-        EmitInvoke(iteratorLocation, iterableLocation, Js::PropertyIds::_symbolAsyncIterator, byteCodeGenerator, funcInfo);
+        EmitMethodFld(false, false, iteratorLocation, iterableLocation, Js::PropertyIds::_symbolAsyncIterator, byteCodeGenerator, funcInfo);
+
+        byteCodeGenerator->Writer()->BrReg2(Js::OpCode::BrEq_A, hasAsyncIterator, iteratorLocation, funcInfo->undefinedConstantRegister);
+        funcInfo->StartRecordingOutArgs(1);
+
+        Js::ProfileId callSiteId = byteCodeGenerator->GetNextCallSiteId(Js::OpCode::CallI);
+
+        byteCodeGenerator->Writer()->StartCall(Js::OpCode::StartCall, 1);
+        EmitArgListStart(iterableLocation, byteCodeGenerator, funcInfo, callSiteId);
+
+        byteCodeGenerator->Writer()->CallI(Js::OpCode::CallI, iteratorLocation, iteratorLocation, 1, callSiteId);
+
         byteCodeGenerator->Writer()->Br(skipLabel);
 
         byteCodeGenerator->Writer()->MarkLabel(hasAsyncIterator);
@@ -10258,9 +10269,9 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
 
     // Evaluate operand
     Emit(yieldStarNode->pnode1, byteCodeGenerator, funcInfo, false);
-    funcInfo->ReleaseLoc(yieldStarNode->pnode1);
 
     EmitGetIterator(iteratorLocation, yieldStarNode->pnode1->location, byteCodeGenerator, funcInfo, funcInfo->IsAsyncGenerator());
+    funcInfo->ReleaseLoc(yieldStarNode->pnode1);
 
     // Call the iterator's next()
     EmitIteratorNext(yieldStarNode->location, iteratorLocation, funcInfo->undefinedConstantRegister, byteCodeGenerator, funcInfo);
