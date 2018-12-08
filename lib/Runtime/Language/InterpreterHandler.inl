@@ -390,6 +390,7 @@ EXDEF2_WMS(TRYBR2,                  ResumeFinally,              OP_ResumeFinally
 EXDEF2_WMS(A2toXXMemNonVar,         AsyncYieldStar,             OP_AsyncYieldStar)
 EXDEF2_WMS(A2toXXMemNonVar,         AsyncYield,                 OP_AsyncYield)
 EXDEF2_WMS(A2toXXMemNonVar,         Await,                      OP_Await)
+EXDEF2_WMS(A1NonVarToA1,            AsyncYieldIsReturn,         OP_AsyncYieldIsReturn)
   DEF2_WMS(A1NonVarToA1,            ResumeYield,                OP_ResumeYield)
   DEF2_WMS(A2NonVarToA1Reg,         ResumeYieldStar,            OP_ResumeYield)
 EXDEF2    (W1,                      RuntimeTypeError,           JavascriptExceptionOperators::OP_RuntimeTypeError)

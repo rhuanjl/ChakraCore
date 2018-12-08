@@ -9979,6 +9979,16 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         JavascriptPromise::CreateThenPromise(promise, generator->GetAwaitYieldFunction(), generator->GetAwaitThrowFunction(), scriptContext);   
     }
 
+    Var JavascriptOperators::OP_AsyncYieldIsReturn(ResumeYieldData* yieldData)
+    {
+        JIT_HELPER_NOT_REENTRANT_NOLOCK_HEADER(AsyncYieldIsReturn);
+        JavascriptLibrary* library = yieldData->generator->GetScriptContext()->GetLibrary();
+
+        return (yieldData->exceptionObj != nullptr && yieldData->exceptionObj->IsGeneratorReturnException()) ?
+            library->GetTrue() : library->GetFalse();
+        JIT_HELPER_END(AsyncYieldIsReturn);
+    }
+
     Var JavascriptOperators::OP_ResumeYield(ResumeYieldData* yieldData, RecyclableObject* iterator)
     {
         JIT_HELPER_REENTRANT_HEADER(ResumeYield);
@@ -10046,12 +10056,12 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
                 return JavascriptFunction::CallFunction<true>(method, method->GetEntryPoint(), Arguments(callInfo, args));
             });
 
-            if (!JavascriptOperators::IsObject(result))
+            if (yieldData->generator == nullptr && !JavascriptOperators::IsObject(result))
             {
                 JavascriptError::ThrowTypeError(scriptContext, JSERR_NeedObject);
             }
 
-            if (isThrow || isNext)
+            if (isThrow || isNext || yieldData->generator != nullptr)
             {
                 // 5.b.ii.2
                 // NOTE: Exceptions from the inner iterator throw method are propagated.

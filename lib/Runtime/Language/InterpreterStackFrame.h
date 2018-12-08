@@ -275,6 +275,7 @@ namespace Js
         static void OP_AsyncYield(Var yieldDataVar, Var value, ScriptContext* scriptContext);
         static void OP_AsyncYieldStar(Var yieldDataVar, Var value, ScriptContext* scriptContext);
         static void OP_Await(Var yieldDataVar, Var value, ScriptContext* scriptContext);
+        static Var OP_AsyncYieldIsReturn(Var yieldDataVar);
 
         template <typename RegSlotType>
         Var GetRegAllowStackVarEnableOnly(RegSlotType localRegisterID) const;

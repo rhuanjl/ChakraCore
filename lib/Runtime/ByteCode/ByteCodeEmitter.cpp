@@ -10265,6 +10265,7 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     Js::ByteCodeLabel loopEntrance = byteCodeGenerator->Writer()->DefineLabel();
     Js::ByteCodeLabel continuePastLoop = byteCodeGenerator->Writer()->DefineLabel();
 
+    Js::RegSlot isReturn = funcInfo->AcquireTmpRegister();
     Js::RegSlot iteratorLocation = funcInfo->AcquireTmpRegister();
 
     // Evaluate operand
@@ -10284,7 +10285,12 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     // if this is an async generator then await the yielded value
     if (funcInfo->IsAsyncGenerator())
     {
+        byteCodeGenerator->Writer()->Reg2(Js::OpCode::AsyncYieldIsReturn, isReturn, funcInfo->yieldRegister);
         EmitYield(yieldStarNode->location, yieldStarNode->location, byteCodeGenerator, funcInfo, true, true);
+        Js::ByteCodeLabel skipThrow = byteCodeGenerator->Writer()->DefineLabel();
+        byteCodeGenerator->Writer()->BrReg1(Js::OpCode::BrOnObject_A, skipThrow, iteratorLocation);
+        byteCodeGenerator->Writer()->W1(Js::OpCode::RuntimeTypeError, SCODE_CODE(JSERR_NeedObject));
+        byteCodeGenerator->Writer()->MarkLabel(skipThrow);
     }
 
     Js::RegSlot doneLocation = funcInfo->AcquireTmpRegister();
@@ -10302,6 +10308,18 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     byteCodeGenerator->Writer()->MarkLabel(continuePastLoop);
     byteCodeGenerator->Writer()->ExitLoop(loopId);
 
+    if (funcInfo->IsAsyncGenerator())
+    {
+        Js::ByteCodeLabel notReturn = byteCodeGenerator->Writer()->DefineLabel();
+        byteCodeGenerator->Writer()->BrReg1(Js::OpCode::BrFalse_A, notReturn, isReturn);
+        EmitIteratorValue(yieldStarNode->location, yieldStarNode->location, byteCodeGenerator, funcInfo);
+        byteCodeGenerator->Writer()->Reg2(Js::OpCode::Ld_A, ByteCodeGenerator::ReturnRegister, yieldStarNode->location);
+        byteCodeGenerator->EmitLeaveOpCodesBeforeYield();
+        byteCodeGenerator->Writer()->Br(funcInfo->singleExit);
+
+        byteCodeGenerator->Writer()->MarkLabel(notReturn);
+    }
+    funcInfo->ReleaseTmpRegister(isReturn);
     // Put the iterator result's value in yieldStarNode->location.
     // It will be used as the result value of the yield* operator expression.
     EmitIteratorValue(yieldStarNode->location, yieldStarNode->location, byteCodeGenerator, funcInfo);

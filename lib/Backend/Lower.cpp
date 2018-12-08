@@ -2960,6 +2960,14 @@ Lowerer::LowerRange(IR::Instr *instrStart, IR::Instr *instrEnd, bool defaultDoFa
             break;
         }
 
+        case Js::OpCode::AsyncYieldIsReturn:
+        {
+            IR::Opnd *srcOpnd1 = instr->UnlinkSrc1();
+            m_lowererMD.LoadHelperArgument(instr, srcOpnd1);
+            m_lowererMD.ChangeToHelperCall(instr, IR::HelperAsyncYieldIsReturn);
+            break;
+        }
+
         case Js::OpCode::AsyncYieldStar:
         {
             IR::Opnd *srcOpnd1 = instr->UnlinkSrc1();
