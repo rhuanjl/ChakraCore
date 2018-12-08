@@ -113,4 +113,10 @@
       <compile-flags>-ES2018AsyncIteration -args summary -endargs</compile-flags>
     </default>
   </test>
+  <test>
+    <default>
+      <files>for-await-of.js</files>
+      <compile-flags>-ES2018AsyncIteration -args summary -endargs</compile-flags>
+    </default>
+  </test>
 </regress-exe>
