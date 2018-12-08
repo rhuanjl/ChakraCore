@@ -6341,15 +6341,6 @@ namespace Js
         return RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, JavascriptAsyncGeneratorFunction, type, scriptFunction);
     }
 
-    JavascriptAsyncGeneratorFunction* JavascriptLibrary::CreateAsyncGeneratorFunction(JavascriptMethod entryPoint, bool isAnonymousFunction)
-    {
-        Assert(scriptContext->GetConfig()->IsES2018AsyncIterationEnabled());
-
-        DynamicType* type = CreateDeferredPrototypeAsyncGeneratorFunctionType(entryPoint, isAnonymousFunction);
-
-        return RecyclerNewEnumClass(this->GetRecycler(), EnumFunctionClass, JavascriptAsyncGeneratorFunction, type, nullptr);
-    }
-
     JavascriptAsyncFromSyncIterator* JavascriptLibrary::CreateAsyncFromSyncIterator(RecyclableObject* syncIterator)
     {
         Assert(scriptContext->GetConfig()->IsES2018AsyncIterationEnabled());
