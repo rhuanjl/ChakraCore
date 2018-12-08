@@ -235,6 +235,7 @@ MACRO_EXTEND_WMS(       AsyncYieldStar,     Reg2,           OpSideEffect)       
 MACRO_WMS(              Yield,              Reg2,           OpSideEffect|OpUseAllFields)                        // Yield from generator function
 MACRO_WMS(              ResumeYield,        Reg2,           OpSideEffect)
 MACRO_WMS(              ResumeYieldStar,    Reg3,           OpSideEffect)
+MACRO_EXTEND_WMS(       AsyncYieldIsReturn, Reg2,           OpSideEffect)                                       // Check for .return() during async yield*
 
 // Unary operations
 MACRO_WMS(              Incr_A,             Reg2,           OpTempNumberProducing|OpOpndHasImplicitCall|OpDoNotTransfer|OpTempNumberSources|OpTempObjectSources|OpCanCSE|OpPostOpDbgBailOut|OpProducesNumber)     // Increment

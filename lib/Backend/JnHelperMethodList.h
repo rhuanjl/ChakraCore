@@ -527,6 +527,7 @@ HELPERCALLCHK(LdFuncObjProto,           Js::JavascriptOperators::OP_LdFuncObjPro
 HELPERCALLCHK(ImportCall,               Js::JavascriptOperators::OP_ImportCall, 0)
 HELPERCALLCHK(NewAsyncFromSyncIterator, Js::JavascriptOperators::OP_NewAsyncFromSyncIterator, AttrCanNotBeReentrant)
 
+HELPERCALLCHK(AsyncYieldIsReturn,       Js::JavascriptOperators::OP_AsyncYieldIsReturn, AttrCanNotBeReentrant)
 HELPERCALLCHK(ResumeYield,              Js::JavascriptOperators::OP_ResumeYield, AttrCanThrow)
 HELPERCALL(AsyncYieldStar,              Js::InterpreterStackFrame::OP_AsyncYieldStar, AttrCanNotBeReentrant)
 HELPERCALL(AsyncYield,                  Js::InterpreterStackFrame::OP_AsyncYield, AttrCanNotBeReentrant)

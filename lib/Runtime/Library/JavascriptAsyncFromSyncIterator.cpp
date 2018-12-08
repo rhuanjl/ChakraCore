@@ -169,7 +169,7 @@ namespace Js
 
         if (returnMethod == library->GetUndefined())
         {
-            result = library->CreateIteratorResultObject(library->GetUndefined(), library->GetTrue());
+            result = library->CreateIteratorResultObject(args.Info.Count > 1 ? args[1] : library->GetUndefined(), library->GetTrue());
             return JavascriptPromise::CreateResolvedPromise(result, scriptContext);
         }
         

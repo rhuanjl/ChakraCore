@@ -9375,6 +9375,13 @@ skipThunk:
         JavascriptOperators::OP_Await(yieldData->generator, value, scriptContext);
     }
 
+    Var InterpreterStackFrame::OP_AsyncYieldIsReturn(Var yieldDataVar)
+    {
+        ResumeYieldData* yieldData = static_cast<ResumeYieldData*>(yieldDataVar);
+
+        return JavascriptOperators::OP_AsyncYieldIsReturn(yieldData);
+    }
+
     Var InterpreterStackFrame::OP_ResumeYield(Var yieldDataVar, RegSlot yieldStarIterator)
     {
         ResumeYieldData* yieldData = static_cast<ResumeYieldData*>(yieldDataVar);
