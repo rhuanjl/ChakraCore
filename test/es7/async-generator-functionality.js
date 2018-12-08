@@ -80,6 +80,20 @@ const tests = [
         }
     },
     {
+        name : "Yield and await that doesn't resolve",
+        body() {
+            async function* agf (a) {
+                for (let i = 0; i < 3; ++i) {
+                    yield a + await new Promise(r => {});
+                }
+                return a;
+            }
+            const gen = agf(2);
+            gen.next().then(() => {print ("This should not be printed");})
+            gen.next().then(() => {print ("This should not be printed");})
+        }
+    },
+    {
         name : "Yield and early return",
         body() {
             async function* agf (a) {
@@ -107,6 +121,19 @@ const tests = [
             AddPromise(this.name, "yield* from array 3", gen.next(), {value : 1, done : false});
             AddPromise(this.name, "yield* from array 4", gen.next(), {value : 5, done : false});
             AddPromise(this.name, "yield* from array 5", gen.next(), {done : true});
+        }
+    },
+    {
+        name : "Yield* on sync object with early return",
+        body() {
+            async function* agf (a) {
+                yield* a;
+            }
+            const gen = agf([3,2,1,5]);
+            AddPromise(this.name, "yield* from array 1", gen.next(), {value : 3, done : false});
+            AddPromise(this.name, "yield* from array 2", gen.next(), {value : 2, done : false});
+            AddPromise(this.name, "yield* from array early use of .return()", gen.return("other"), {value : "other", done : true});
+            AddPromise(this.name, "yield* from array after .return()", gen.next(), {done : true});
         }
     },
     {
