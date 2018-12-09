@@ -19,7 +19,7 @@ namespace Js
         catch (const JavascriptException& err)
         {
             JavascriptExceptionObject* exception = err.GetAndClear();
-            return JavascriptPromise::CreateRejectedPromise(exception, scriptContext);
+            return JavascriptPromise::CreateRejectedPromise(exception->GetThrownObject(scriptContext), scriptContext);
         }
 
         // 3. Let value be IteratorValue(result).
@@ -32,7 +32,7 @@ namespace Js
         catch (const JavascriptException& err)
         {
             JavascriptExceptionObject* exception = err.GetAndClear();
-            return JavascriptPromise::CreateRejectedPromise(exception, scriptContext);
+            return JavascriptPromise::CreateRejectedPromise(exception->GetThrownObject(scriptContext), scriptContext);
         }
 
         // 5. Let valueWrapper be ? PromiseResolve(%Promise%, <<value>>).

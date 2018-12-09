@@ -294,7 +294,7 @@ using namespace Js;
             auto pfuncGen = functionKind == FunctionKind::Async ?
                 scriptContext->GetLibrary()->CreateAsyncFunction(JavascriptAsyncFunction::EntryAsyncFunctionImplementation, pfuncVirt) :
                 functionKind == FunctionKind::AsyncGenerator ?
-                scriptContext->GetLibrary()->CreateAsyncGeneratorFunction(JavascriptAsyncGeneratorFunction::EntryGeneratorFunctionImplementation, pfuncVirt) :
+                scriptContext->GetLibrary()->CreateAsyncGeneratorFunction(JavascriptAsyncGeneratorFunction::EntryAsyncGeneratorFunctionImplementation, pfuncVirt) :
                 scriptContext->GetLibrary()->CreateGeneratorFunction(JavascriptGeneratorFunction::EntryGeneratorFunctionImplementation, pfuncVirt);
             pfuncVirt->SetRealGeneratorFunction(pfuncGen);
             pfuncScript = pfuncGen;
@@ -335,7 +335,7 @@ using namespace Js;
 
         ARGUMENTS(args, callInfo);
 
-        return JavascriptFunction::NewInstanceHelper(function->GetScriptContext(), function, callInfo, args, JavascriptFunction::FunctionKind::Async);
+        return JavascriptFunction::NewInstanceHelper(function->GetScriptContext(), function, callInfo, args, JavascriptFunction::FunctionKind::AsyncGenerator);
     }
 
     Var JavascriptFunction::NewAsyncGeneratorFunctionInstanceRestrictedMode(RecyclableObject* function, CallInfo callInfo, ...)
@@ -348,7 +348,7 @@ using namespace Js;
 
         ARGUMENTS(args, callInfo);
 
-        return JavascriptFunction::NewInstanceHelper(scriptContext, function, callInfo, args, JavascriptFunction::FunctionKind::Async);
+        return JavascriptFunction::NewInstanceHelper(scriptContext, function, callInfo, args, JavascriptFunction::FunctionKind::AsyncGenerator);
     }
 
     Var JavascriptFunction::NewAsyncFunctionInstance(RecyclableObject* function, CallInfo callInfo, ...)

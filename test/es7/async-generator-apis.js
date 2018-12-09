@@ -201,10 +201,10 @@ const tests = [
             assert.areEqual(asyncGeneratorFunctionPrototype, Object.getPrototypeOf(agf), "Async function created by %AsyncGeneratorFunction% should have the same prototype as syntax declared async functions");
 
             assert.areEqual("anonymous", agf.name, "asyncGeneratorFunction constructed async function's name is 'anonymous'");
-            assert.areEqual("async function anonymous(\n) {return await 1;\n}", agf.toString(), "toString of asyncGeneratorFunction constructed function is named 'anonymous'");
+            assert.areEqual("async function* anonymous(\n) {return await 1;\n}", agf.toString(), "toString of asyncGeneratorFunction constructed function is named 'anonymous'");
 
             agf = new asyncGeneratorFunction('a', 'b', 'c', 'await a; await b; await c;');
-            assert.areEqual("async function anonymous(a,b,c\n) {await a; await b; await c;\n}", agf.toString(), "toString of asyncGeneratorFunction constructed function is named 'anonymous' with specified parameters");
+            assert.areEqual("async function* anonymous(a,b,c\n) {await a; await b; await c;\n}", agf.toString(), "toString of asyncGeneratorFunction constructed function is named 'anonymous' with specified parameters");
 
             // Cannot easily verify behavior of async generator functions in conjunction with UnitTestFramework.js
             // due to callback nature of their execution. Instead, verification of behavior is
