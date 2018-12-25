@@ -91,26 +91,26 @@ namespace Js
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         // promise creation deferred to the end to simplify logic
 
-        // these steps skipped as no codepath exists that will enable reaching here with wrong object type
+        // this step skipped as no codepath exists that will enable reaching here with wrong object type
         // 3. If Type(O) is not Object, or if O does not have a [[SyncIteratorRecord]] internal slot, then
-        // 4. Let invalidIteratorError be a newly created TypeError object.
-        // 5. Perform ! Call(promiseCapability.[[Reject]], undefined, << invalidIteratorError >>).
-        // 6. Return promiseCapability.[[Promise]].
+        //    a. Let invalidIteratorError be a newly created TypeError object.
+        //    b. Perform ! Call(promiseCapability.[[Reject]], undefined, << invalidIteratorError >>).
+        //    c. Return promiseCapability.[[Promise]].
 
-        // this will failfast if the logic that makes steps 3-6 irrelevant changes
+        // this will failfast if the logic that makes steps 3 irrelevant changes
         JavascriptAsyncFromSyncIterator* thisValue = VarTo<JavascriptAsyncFromSyncIterator>(args[0]);
 
-        // 7. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
+        // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         RecyclableObject* syncIteratorRecord = thisValue->GetSyncIterator();
         RecyclableObject* result = nullptr;
-        // 8. Let result be IteratorNext(syncIteratorRecord, value).
+        // 5. Let result be IteratorNext(syncIteratorRecord, value).
         try
         {
             result = JavascriptOperators::IteratorNext(syncIteratorRecord, scriptContext, args.Info.Count > 1 ? args[1] : nullptr);
         }
         catch (const JavascriptException& err)
         {
-            // 9. IfAbruptRejectPromise(result, promiseCapability).
+            // 6. IfAbruptRejectPromise(result, promiseCapability).
             JavascriptExceptionObject* exception = err.GetAndClear();
             if (exception != nullptr)
             {
@@ -118,7 +118,7 @@ namespace Js
             }
         }
  
-        // 10. Return ! AsyncFromSyncIteratorContinuation(result, promiseCapability).
+        // 7. Return ! AsyncFromSyncIteratorContinuation(result, promiseCapability).
         return JavascriptAsyncFromSyncIterator::AsyncFromSyncIteratorContinuation(result, scriptContext);
     }
 
@@ -135,7 +135,7 @@ namespace Js
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         // promise creation deferred to the end to simplify logic
 
-        // these steps skipped as no codepath exists that will enable reaching here with wrong object type
+        // this step skipped as no codepath exists that will enable reaching here with wrong object type
         // 3. If Type(O) is not Object, or if O does not have a [[SyncIteratorRecord]] internal slot, then
         //    a. Let invalidIteratorError be a newly created TypeError object.
         //    b. Perform ! Call(promiseCapability.[[Reject]], undefined, << invalidIteratorError >>).
@@ -172,7 +172,7 @@ namespace Js
             result = library->CreateIteratorResultObject(args.Info.Count > 1 ? args[1] : library->GetUndefined(), library->GetTrue());
             return JavascriptPromise::CreateResolvedPromise(result, scriptContext);
         }
-        
+
         if (!JavascriptConversion::IsCallable(returnMethod))
         {
             JavascriptError* typeError = library->CreateTypeError();
@@ -259,7 +259,6 @@ namespace Js
                 return JavascriptPromise::CreateRejectedPromise(exception->GetThrownObject(scriptContext), scriptContext);
             }
         }
-        
 
         if (throwMethod == library->GetUndefined())
         {

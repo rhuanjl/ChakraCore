@@ -342,40 +342,28 @@ namespace Js
 
     void JavascriptGenerator::CallAsyncGenerator(ResumeYieldData* yieldData)
     {
+        AssertOrFailFastMsg(isAsync, "Should not call CallAsyncGenerator on a non-async generator");
         ScriptContext* scriptContext = this->GetScriptContext();
         Var result = nullptr;
         JavascriptExceptionObject *exception = nullptr;
         yieldData->generator = this;
-        AssertMsg(isAsync, "Should not call CallAsyncGenerator on a non-async generator");
-        {
-            // RAII helper to set the state of the generator to completed if an exception is thrown
-            // or if the save state InterpreterStackFrame is never created implying the generator
-            // is JITed and returned without ever yielding.
-            class GeneratorStateHelper
-            {
-                JavascriptGenerator* g;
-                bool didThrow;
-            public:
-                GeneratorStateHelper(JavascriptGenerator* g) : g(g), didThrow(true) { g->SetState(GeneratorState::Executing); }
-                ~GeneratorStateHelper() { if (didThrow || g->frame == nullptr) {g->SetState(GeneratorState::Completed); } }
-                void DidNotThrow() { didThrow = false; }
-            } helper(this);
 
-            Var thunkArgs[] = { this, yieldData };
-            Arguments arguments(_countof(thunkArgs), thunkArgs);
-            try
+        SetState(GeneratorState::Executing);
+
+        Var thunkArgs[] = { this, yieldData };
+        Arguments arguments(_countof(thunkArgs), thunkArgs);
+        try
+        {
+            BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
             {
-                BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
-                {
-                    result = JavascriptFunction::CallFunction<1>(this->scriptFunction, this->scriptFunction->GetEntryPoint(), arguments);
-                }
-                END_SAFE_REENTRANT_CALL
-                helper.DidNotThrow();
+                result = JavascriptFunction::CallFunction<1>(this->scriptFunction, this->scriptFunction->GetEntryPoint(), arguments);
             }
-            catch (const JavascriptException& err)
-            {
-                exception = err.GetAndClear();
-            }
+            END_SAFE_REENTRANT_CALL
+        }
+        catch (const JavascriptException& err)
+        {
+            SetState(GeneratorState::Completed);
+            exception = err.GetAndClear();
         }
 
         if (exception != nullptr)
@@ -387,8 +375,7 @@ namespace Js
                 return;
             }
         }
-
-        if (!this->IsCompleted())
+        else
         {
             int nextOffset = this->frame->GetReader()->GetCurrentOffset();
             int endOffset = this->frame->GetFunctionBody()->GetByteCode()->GetLength();
@@ -397,6 +384,7 @@ namespace Js
             {
                 return;
             }
+            SetState(GeneratorState::Completed);
         }
 
         ProcessAsyncGeneratorReturn(result, scriptContext);
@@ -443,8 +431,14 @@ namespace Js
 
     Var JavascriptGenerator::AsyncGeneratorEnqueue(Var thisValue, ScriptContext* scriptContext, Var input, JavascriptExceptionObject* exceptionObj, const char16* apiNameForErrorMessage)
     {
+        // 1. Assert: completion is a Completion Record.
+        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         JavascriptPromise* promise = JavascriptPromise::CreateEnginePromise(scriptContext);
 
+        // 3. If Type(generator) is not Object, or if generator does not have an [[AsyncGeneratorState]] internal slot, then
+        //    a. Let badGeneratorError be a newly created TypeError object.
+        //    b. Perform ! Call(promiseCapability.[[Reject]], undefined, « badGeneratorError »).
+        //    c. Return promiseCapability.[[Promise]].
         if (!VarIs<JavascriptGenerator>(thisValue))
         {
             Var error = CreateTypeError(JSERR_NeedObjectOfType, scriptContext, apiNameForErrorMessage, _u("AsyncGenerator"));
@@ -461,14 +455,22 @@ namespace Js
             return promise;
         }
 
+        // 4. Let queue be generator.[[AsyncGeneratorQueue]].
+        // 5. Let request be AsyncGeneratorRequest { [[Completion]]: completion, [[Capability]]: promiseCapability }.
         AsyncGeneratorRequest* request = RecyclerNew(scriptContext->GetRecycler(), AsyncGeneratorRequest, input, exceptionObj, promise);
+
+        // 6. Append request to the end of queue.
         generator->EnqueueRequest(request);
 
+        // 7. Let state be generator.[[AsyncGeneratorState]].
+        // 8. If state is not "executing", then
+        //    a. Perform ! AsyncGeneratorResumeNext(generator).
         if (!generator->IsExecuting())
         {
             generator->AsyncGeneratorResumeNext();
         }
 
+        // 9. Return promiseCapability.[[Promise]].
         return request->promise;
     }
 
