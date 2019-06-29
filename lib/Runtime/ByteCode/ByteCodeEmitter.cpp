@@ -6059,7 +6059,8 @@ void EmitReference(ParseNode *pnode, ByteCodeGenerator *byteCodeGenerator, FuncI
 }
 
 void EmitGetIterator(Js::RegSlot iteratorLocation, Js::RegSlot iterableLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, bool isAsync = false);
-void EmitIteratorNext(Js::RegSlot itemLocation, Js::RegSlot iteratorLocation, Js::RegSlot nextInputLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
+void CacheIteratorNext(Js::RegSlot iteratorLocation, Js::RegSlot nextCache, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
+void EmitIteratorNext(Js::RegSlot itemLocation, Js::RegSlot iteratorLocation, Js::RegSlot nextInputLocation, Js::RegSlot nextCache, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
 void EmitIteratorClose(Js::RegSlot iteratorLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, bool isAsync = false);
 void EmitIteratorComplete(Js::RegSlot doneLocation, Js::RegSlot iteratorResultLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
 void EmitIteratorValue(Js::RegSlot valueLocation, Js::RegSlot iteratorResultLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
@@ -6085,6 +6086,7 @@ void EmitDestructuredElement(ParseNode *elem, Js::RegSlot sourceLocation, ByteCo
 
 void EmitDestructuredRestArray(ParseNode *elem,
     Js::RegSlot iteratorLocation,
+    Js::RegSlot nextCache,
     Js::RegSlot shouldCallReturnFunctionLocation,
     Js::RegSlot shouldCallReturnFunctionLocationFinally,
     ByteCodeGenerator *byteCodeGenerator,
@@ -6122,7 +6124,7 @@ void EmitDestructuredRestArray(ParseNode *elem,
 
     Js::RegSlot itemLocation = funcInfo->AcquireTmpRegister();
 
-    EmitIteratorNext(itemLocation, iteratorLocation, Js::Constants::NoRegister, byteCodeGenerator, funcInfo);
+    EmitIteratorNext(itemLocation, iteratorLocation, Js::Constants::NoRegister, nextCache, byteCodeGenerator, funcInfo);
 
     Js::RegSlot doneLocation = funcInfo->AcquireTmpRegister();
     EmitIteratorComplete(doneLocation, itemLocation, byteCodeGenerator, funcInfo);
@@ -6218,6 +6220,8 @@ void EmitDestructuredArrayCore(
     )
 {
     Assert(list != nullptr);
+    Js::RegSlot nextCache = funcInfo->AcquireTmpRegister();
+    CacheIteratorNext(iteratorLocation, nextCache, byteCodeGenerator, funcInfo);
 
     ParseNode *elem = nullptr;
     while (list != nullptr)
@@ -6271,7 +6275,7 @@ void EmitDestructuredArrayCore(
         byteCodeGenerator->Writer()->Reg1(Js::OpCode::LdFalse, shouldCallReturnFunctionLocationFinally);
 
         Js::RegSlot itemLocation = funcInfo->AcquireTmpRegister();
-        EmitIteratorNext(itemLocation, iteratorLocation, Js::Constants::NoRegister, byteCodeGenerator, funcInfo);
+        EmitIteratorNext(itemLocation, iteratorLocation, Js::Constants::NoRegister, nextCache, byteCodeGenerator, funcInfo);
 
         Js::RegSlot doneLocation = funcInfo->AcquireTmpRegister();
         EmitIteratorComplete(doneLocation, itemLocation, byteCodeGenerator, funcInfo);
@@ -6428,11 +6432,13 @@ void EmitDestructuredArrayCore(
     {
         EmitDestructuredRestArray(elem,
             iteratorLocation,
+            nextCache,
             shouldCallReturnFunctionLocation,
             shouldCallReturnFunctionLocationFinally,
             byteCodeGenerator,
             funcInfo);
     }
+    funcInfo->ReleaseTmpRegister(nextCache);
 }
 
 struct ByteCodeGenerator::TryScopeRecord : public JsUtil::DoublyLinkedListElement<TryScopeRecord>
@@ -9461,16 +9467,36 @@ void EmitGetIterator(Js::RegSlot iteratorLocation, Js::RegSlot iterableLocation,
     byteCodeGenerator->Writer()->MarkLabel(skipThrow);
 }
 
-void EmitIteratorNext(Js::RegSlot itemLocation, Js::RegSlot iteratorLocation, Js::RegSlot nextInputLocation, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo)
+void CacheIteratorNext(Js::RegSlot iteratorLocation, Js::RegSlot nextCache, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo)
+{
+    EmitMethodFld(false, false, nextCache, iteratorLocation, Js::PropertyIds::next, byteCodeGenerator, funcInfo);
+}
+
+void EmitIteratorNext(Js::RegSlot itemLocation, Js::RegSlot iteratorLocation, Js::RegSlot nextInputLocation, Js::RegSlot nextCache, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo)
 {
     // invoke next() on the iterator
     if (nextInputLocation == Js::Constants::NoRegister)
     {
-        EmitInvoke(itemLocation, iteratorLocation, Js::PropertyIds::next, byteCodeGenerator, funcInfo);
+        funcInfo->StartRecordingOutArgs(1);
+
+        Js::ProfileId callSiteId = byteCodeGenerator->GetNextCallSiteId(Js::OpCode::CallI);
+
+        byteCodeGenerator->Writer()->StartCall(Js::OpCode::StartCall, 1);
+        EmitArgListStart(iteratorLocation, byteCodeGenerator, funcInfo, callSiteId);
+
+        byteCodeGenerator->Writer()->CallI(Js::OpCode::CallI, itemLocation, nextCache, 1, callSiteId);
     }
     else
     {
-        EmitInvoke(itemLocation, iteratorLocation, Js::PropertyIds::next, byteCodeGenerator, funcInfo, nextInputLocation);
+        funcInfo->StartRecordingOutArgs(2);
+
+        Js::ProfileId callSiteId = byteCodeGenerator->GetNextCallSiteId(Js::OpCode::CallI);
+
+        byteCodeGenerator->Writer()->StartCall(Js::OpCode::StartCall, 2);
+        EmitArgListStart(iteratorLocation, byteCodeGenerator, funcInfo, callSiteId);
+        byteCodeGenerator->Writer()->ArgOut<true>(1, nextInputLocation, callSiteId, false /*emitProfiledArgout*/);
+
+        byteCodeGenerator->Writer()->CallI(Js::OpCode::CallI, itemLocation, nextCache, 2, callSiteId);
     }
 
     // throw TypeError if the result is not an object
@@ -9716,6 +9742,7 @@ void EmitForInOrForOf(ParseNodeForInOrForOf *loopNode, ByteCodeGenerator *byteCo
 
     // Grab registers for the enumerator and for the current enumerated item.
     // The enumerator register will be released after this call returns.
+    Js::RegSlot nextCache = funcInfo->AcquireTmpRegister();
     loopNode->itemLocation = funcInfo->AcquireTmpRegister();
 
     // We want call profile information on the @@iterator call, so instead of adding a GetForOfIterator bytecode op
@@ -9765,6 +9792,8 @@ void EmitForInOrForOf(ParseNodeForInOrForOf *loopNode, ByteCodeGenerator *byteCo
 
     byteCodeGenerator->EndStatement(loopNode);
 
+    CacheIteratorNext(loopNode->location, nextCache, byteCodeGenerator, funcInfo);
+
     // Need to increment loop count whether we are going into profile or not for HasLoop()
     uint loopId = byteCodeGenerator->Writer()->EnterLoop(loopEntrance);
     loopNode->loopId = loopId;
@@ -9774,7 +9803,7 @@ void EmitForInOrForOf(ParseNodeForInOrForOf *loopNode, ByteCodeGenerator *byteCo
     byteCodeGenerator->Writer()->Reg1(Js::OpCode::LdFalse, shouldCallReturnFunctionLocation);
     byteCodeGenerator->Writer()->Reg1(Js::OpCode::LdFalse, shouldCallReturnFunctionLocationFinally);
 
-    EmitIteratorNext(loopNode->itemLocation, loopNode->location, Js::Constants::NoRegister, byteCodeGenerator, funcInfo);
+    EmitIteratorNext(loopNode->itemLocation, loopNode->location, Js::Constants::NoRegister, nextCache, byteCodeGenerator, funcInfo);
 
     // if this is a for-await-of then await the iterator next result
     if (isForAwaitOf)
@@ -9804,6 +9833,7 @@ void EmitForInOrForOf(ParseNodeForInOrForOf *loopNode, ByteCodeGenerator *byteCo
     EmitForInOfLoopBody(loopNode, loopEntrance, continuePastLoop, byteCodeGenerator, funcInfo, fReturnValue);
 
     byteCodeGenerator->Writer()->ExitLoop(loopId);
+    funcInfo->ReleaseTmpRegister(nextCache);
 
     EmitCatchAndFinallyBlocks(catchLabel,
         finallyLabel,
@@ -10293,7 +10323,9 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     Js::ByteCodeLabel continuePastLoop = byteCodeGenerator->Writer()->DefineLabel();
 
     Js::RegSlot isReturn = funcInfo->AcquireTmpRegister();
+    Js::RegSlot iteratorObject = funcInfo->AcquireTmpRegister();
     Js::RegSlot iteratorLocation = funcInfo->AcquireTmpRegister();
+    Js::RegSlot nextCache = funcInfo->AcquireTmpRegister();
 
     // Evaluate operand
     Emit(yieldStarNode->pnode1, byteCodeGenerator, funcInfo, false);
@@ -10302,7 +10334,15 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     funcInfo->ReleaseLoc(yieldStarNode->pnode1);
 
     // Call the iterator's next()
-    EmitIteratorNext(yieldStarNode->location, iteratorLocation, funcInfo->undefinedConstantRegister, byteCodeGenerator, funcInfo);
+    CacheIteratorNext(iteratorLocation, nextCache, byteCodeGenerator, funcInfo);
+
+    byteCodeGenerator->Writer()->Reg1(Js::OpCode::NewScObjectSimple, iteratorObject);
+    uint cacheId = funcInfo->FindOrAddInlineCacheId(iteratorObject, Js::PropertyIds::_symbolIterator, false, true);
+    byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::StFld, iteratorLocation, iteratorObject, cacheId);
+    cacheId = funcInfo->FindOrAddInlineCacheId(iteratorObject, Js::PropertyIds::next, false, true);
+    byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::StFld, nextCache, iteratorObject, cacheId);
+
+    EmitIteratorNext(yieldStarNode->location, iteratorLocation, funcInfo->undefinedConstantRegister, nextCache, byteCodeGenerator, funcInfo);
 
     uint loopId = byteCodeGenerator->Writer()->EnterLoop(loopEntrance);
     // since a yield* doesn't have a user defined body, we cannot return from this loop
@@ -10327,9 +10367,11 @@ void EmitYieldStar(ParseNodeUni* yieldStarNode, ByteCodeGenerator* byteCodeGener
     byteCodeGenerator->Writer()->BrReg1(Js::OpCode::BrTrue_A, continuePastLoop, doneLocation);
     funcInfo->ReleaseTmpRegister(doneLocation);
 
-    EmitYield(yieldStarNode->location, yieldStarNode->location, byteCodeGenerator, funcInfo, funcInfo->IsAsyncGenerator(), false, iteratorLocation);
+    EmitYield(yieldStarNode->location, yieldStarNode->location, byteCodeGenerator, funcInfo, funcInfo->IsAsyncGenerator(), false, iteratorObject);
 
+    funcInfo->ReleaseTmpRegister(nextCache);
     funcInfo->ReleaseTmpRegister(iteratorLocation);
+    funcInfo->ReleaseTmpRegister(iteratorObject);
 
     byteCodeGenerator->Writer()->Br(loopEntrance);
     byteCodeGenerator->Writer()->MarkLabel(continuePastLoop);

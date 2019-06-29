@@ -10316,64 +10316,75 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         JIT_HELPER_REENTRANT_HEADER(ResumeYield);
         bool isNext = yieldData->exceptionObj == nullptr;
         bool isThrow = !isNext && !yieldData->exceptionObj->IsGeneratorReturnException();
+        RecyclableObject* iteratorObject = nullptr;
 
         if (iterator != nullptr) // yield*
         {
             ScriptContext* scriptContext = iterator->GetScriptContext();
-            PropertyId propertyId = isNext ? PropertyIds::next : isThrow ? PropertyIds::throw_ : PropertyIds::return_;
-            Var prop = JavascriptOperators::GetProperty(iterator, propertyId, scriptContext);
-
-            if (!isNext && JavascriptOperators::IsUndefinedOrNull(prop))
+            RecyclableObject* method;
+            iteratorObject = UnsafeVarTo<RecyclableObject>(JavascriptOperators::GetProperty(iterator, PropertyIds::_symbolIterator, scriptContext));
+            if (!isNext)
             {
-                if (isThrow)
+                PropertyId propertyId = isThrow ? PropertyIds::throw_ : PropertyIds::return_;
+                Var prop = JavascriptOperators::GetProperty(iteratorObject, propertyId, scriptContext);
+
+                if (JavascriptOperators::IsUndefinedOrNull(prop))
                 {
-                    // 5.b.iii.2
-                    // NOTE: If iterator does not have a throw method, this throw is going to terminate the yield* loop.
-                    // But first we need to give iterator a chance to clean up.
-
-                    prop = JavascriptOperators::GetProperty(iterator, PropertyIds::return_, scriptContext);
-                    if (!JavascriptOperators::IsUndefinedOrNull(prop))
+                    if (isThrow)
                     {
-                        if (!JavascriptConversion::IsCallable(prop))
+                        // 5.b.iii.2
+                        // NOTE: If iterator does not have a throw method, this throw is going to terminate the yield* loop.
+                        // But first we need to give iterator a chance to clean up.
+
+                        prop = JavascriptOperators::GetProperty(iteratorObject, PropertyIds::return_, scriptContext);
+                        if (!JavascriptOperators::IsUndefinedOrNull(prop))
                         {
-                            JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, _u("return"));
+                            if (!JavascriptConversion::IsCallable(prop))
+                            {
+                                JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, _u("return"));
+                            }
+
+                            Var result = nullptr;
+                            method = VarTo<RecyclableObject>(prop);
+                            BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
+                            {
+                                Var args[] = { iteratorObject, yieldData->data };
+                                CallInfo callInfo(CallFlags_Value, _countof(args));
+                                result = JavascriptFunction::CallFunction<true>(method, method->GetEntryPoint(), Arguments(callInfo, args));
+                            }
+                            END_SAFE_REENTRANT_CALL
+
+                            if (!JavascriptOperators::IsObject(result))
+                            {
+                                JavascriptError::ThrowTypeError(scriptContext, JSERR_NeedObject);
+                            }
                         }
 
-                        Var result = nullptr;
-                        RecyclableObject* method = VarTo<RecyclableObject>(prop);
-                        BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
-                        {
-                            Var args[] = { iterator, yieldData->data };
-                            CallInfo callInfo(CallFlags_Value, _countof(args));
-                            result = JavascriptFunction::CallFunction<true>(method, method->GetEntryPoint(), Arguments(callInfo, args));
-                        }
-                        END_SAFE_REENTRANT_CALL
-
-                        if (!JavascriptOperators::IsObject(result))
-                        {
-                            JavascriptError::ThrowTypeError(scriptContext, JSERR_NeedObject);
-                        }
+                        // 5.b.iii.3
+                        // NOTE: The next step throws a TypeError to indicate that there was a yield* protocol violation:
+                        // iterator does not have a throw method.
+                        JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, _u("throw"));
                     }
 
-                    // 5.b.iii.3
-                    // NOTE: The next step throws a TypeError to indicate that there was a yield* protocol violation:
-                    // iterator does not have a throw method.
-                    JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, _u("throw"));
+                    // Do not use ThrowExceptionObject for return() API exceptions since these exceptions are not real exceptions
+                    JavascriptExceptionOperators::DoThrow(yieldData->exceptionObj, scriptContext);
                 }
 
-                // Do not use ThrowExceptionObject for return() API exceptions since these exceptions are not real exceptions
-                JavascriptExceptionOperators::DoThrow(yieldData->exceptionObj, scriptContext);
-            }
+                if (!JavascriptConversion::IsCallable(prop))
+                {
+                    JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, isNext ? _u("next") : isThrow ? _u("throw") : _u("return"));
+                }
 
-            if (!JavascriptConversion::IsCallable(prop))
+                method = UnsafeVarTo<RecyclableObject>(prop);
+            }
+            else
             {
-                JavascriptError::ThrowTypeError(scriptContext, JSERR_Property_NeedFunction, isNext ? _u("next") : isThrow ? _u("throw") : _u("return"));
+                method = UnsafeVarTo<RecyclableObject>(JavascriptOperators::GetProperty(iterator, PropertyIds::next, scriptContext));
             }
 
-            RecyclableObject* method = VarTo<RecyclableObject>(prop);
             Var result = scriptContext->GetThreadContext()->ExecuteImplicitCall(method, Js::ImplicitCall_Accessor, [=]()->Js::Var
             {
-                Var args[] = { iterator, yieldData->data };
+                Var args[] = { iteratorObject, yieldData->data };
                 CallInfo callInfo(CallFlags_Value, _countof(args));
                 return JavascriptFunction::CallFunction<true>(method, method->GetEntryPoint(), Arguments(callInfo, args));
             });
@@ -11251,13 +11262,12 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
         }
     }
 
-    // IteratorNext as described in ES6.0 (draft 22) Section 7.4.2
-    RecyclableObject* JavascriptOperators::IteratorNext(RecyclableObject* iterator, ScriptContext* scriptContext, Var value)
+    RecyclableObject* JavascriptOperators::CacheIteratorNext(RecyclableObject* iterator, ScriptContext* scriptContext)
     {
-        Var func = JavascriptOperators::GetPropertyNoCache(iterator, PropertyIds::next, scriptContext);
+        Var nextFunc = JavascriptOperators::GetPropertyNoCache(iterator, PropertyIds::next, scriptContext);
 
         ThreadContext *threadContext = scriptContext->GetThreadContext();
-        if (!JavascriptConversion::IsCallable(func))
+        if (!JavascriptConversion::IsCallable(nextFunc))
         {
             if (!threadContext->RecordImplicitException())
             {
@@ -11265,13 +11275,19 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
             }
             JavascriptError::ThrowTypeError(scriptContext, JSERR_NeedFunction);
         }
+        return VarTo<RecyclableObject>(nextFunc);
+    }
 
-        RecyclableObject* callable = VarTo<RecyclableObject>(func);
-        Var result = threadContext->ExecuteImplicitCall(callable, ImplicitCall_Accessor, [=]() -> Var
+    // IteratorNext as described in ES6.0 (draft 22) Section 7.4.2
+    RecyclableObject* JavascriptOperators::IteratorNext(RecyclableObject* iterator, ScriptContext* scriptContext, RecyclableObject* nextFunc, Var value)
+    {
+        ThreadContext *threadContext = scriptContext->GetThreadContext();
+
+        Var result = threadContext->ExecuteImplicitCall(nextFunc, ImplicitCall_Accessor, [=]() -> Var
             {
                 Js::Var args[] = { iterator, value };
                 Js::CallInfo callInfo(Js::CallFlags_Value, _countof(args) + (value == nullptr ? -1 : 0));
-                return JavascriptFunction::CallFunction<true>(callable, callable->GetEntryPoint(), Arguments(callInfo, args));
+                return JavascriptFunction::CallFunction<true>(nextFunc, nextFunc->GetEntryPoint(), Arguments(callInfo, args));
             });
 
         if (!JavascriptOperators::IsObject(result))
@@ -11301,18 +11317,18 @@ SetElementIHelper_INDEX_TYPE_IS_NUMBER:
     }
 
     // IteratorStep as described in ES6.0 (draft 22) Section 7.4.5
-    bool JavascriptOperators::IteratorStep(RecyclableObject* iterator, ScriptContext* scriptContext, RecyclableObject** result)
+    bool JavascriptOperators::IteratorStep(RecyclableObject* iterator, ScriptContext* scriptContext, RecyclableObject* nextFunc, RecyclableObject** result)
     {
         Assert(result);
 
-        *result = JavascriptOperators::IteratorNext(iterator, scriptContext);
+        *result = JavascriptOperators::IteratorNext(iterator, scriptContext, nextFunc);
         return !JavascriptOperators::IteratorComplete(*result, scriptContext);
     }
 
-    bool JavascriptOperators::IteratorStepAndValue(RecyclableObject* iterator, ScriptContext* scriptContext, Var* resultValue)
+    bool JavascriptOperators::IteratorStepAndValue(RecyclableObject* iterator, ScriptContext* scriptContext, RecyclableObject* nextFunc, Var* resultValue)
     {
         // CONSIDER: Fast-pathing for iterators that are built-ins?
-        RecyclableObject* result = JavascriptOperators::IteratorNext(iterator, scriptContext);
+        RecyclableObject* result = JavascriptOperators::IteratorNext(iterator, scriptContext, nextFunc);
 
         if (!JavascriptOperators::IteratorComplete(result, scriptContext))
         {
