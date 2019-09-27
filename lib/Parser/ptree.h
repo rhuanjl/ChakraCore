@@ -102,7 +102,6 @@ class ParseNodeTryCatch;
 class ParseNodeTry;
 class ParseNodeCatch;
 class ParseNodeFinally;
-class ParseNodeLoop;
 class ParseNodeWhile;
 class ParseNodeFor;
 class ParseNodeForInOrForOf;
@@ -154,7 +153,6 @@ public:
     ParseNodeCatch * AsParseNodeCatch();
     ParseNodeFinally * AsParseNodeFinally();
 
-    ParseNodeLoop * AsParseNodeLoop();
     ParseNodeWhile * AsParseNodeWhile();
     ParseNodeFor * AsParseNodeFor();
     ParseNodeForInOrForOf * AsParseNodeForInOrForOf();
@@ -804,8 +802,6 @@ class ParseNodeStmt : public ParseNode
 public:
     ParseNodeStmt(OpCode nop, charcount_t ichMin, charcount_t ichLim);
 
-    ParseNodeStmt * pnodeOuter;
-
     // Set by parsing code, used by code gen.
     uint grfnop;
 
@@ -863,21 +859,8 @@ public:
     DISABLE_SELF_CAST(ParseNodeJump);
 };
 
-// base for loop nodes
-class ParseNodeLoop : public ParseNodeStmt
-{
-public:
-    ParseNodeLoop(OpCode nop, charcount_t ichMin, charcount_t ichLim);
-
-    // Needed for byte code gen
-    uint loopId;
-
-
-    DISABLE_SELF_CAST(ParseNodeLoop);
-};
-
 // while and do-while loops
-class ParseNodeWhile : public ParseNodeLoop
+class ParseNodeWhile : public ParseNodeStmt
 {
 public:
     ParseNodeWhile(OpCode nop, charcount_t ichMin, charcount_t ichLim);
@@ -928,7 +911,7 @@ public:
 };
 
 // for-in loop
-class ParseNodeForInOrForOf : public ParseNodeLoop
+class ParseNodeForInOrForOf : public ParseNodeStmt
 {
 public:
     ParseNodeForInOrForOf(OpCode nop, charcount_t ichMin, charcount_t ichLim);
@@ -945,7 +928,7 @@ public:
 };
 
 // for loop
-class ParseNodeFor : public ParseNodeLoop
+class ParseNodeFor : public ParseNodeStmt
 {
 public:
     ParseNodeFor(OpCode nop, charcount_t ichMin, charcount_t ichLim);
