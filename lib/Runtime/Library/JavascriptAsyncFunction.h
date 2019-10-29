@@ -29,9 +29,6 @@ public:
         RecyclableObject* function,
         CallInfo callInfo, ...);
     
-    static Var EntryAsyncSpawnExecutorFunction(
-        RecyclableObject* function,
-        CallInfo callInfo, ...);
     
     static Var EntryAsyncSpawnStepNextFunction(
         RecyclableObject* function,
@@ -41,9 +38,6 @@ public:
         RecyclableObject* function,
         CallInfo callInfo, ...);
 
-    static Var EntryAsyncSpawnCallStepFunction(
-        RecyclableObject* function, 
-        CallInfo callInfo, ...);
 
     static bool Test(JavascriptFunction *obj)
     {
@@ -63,11 +57,10 @@ public:
     }
 
 private:
-    static void AsyncSpawnStep(
-        JavascriptAsyncSpawnStepFunction* nextFunction,
-        JavascriptGenerator* generator,
-        Var resolve,
-        Var reject);
+    static void AsyncSpawnStep(Var resolvedValue, 
+        JavascriptAsyncSpawnStepFunction* successFunction,
+        JavascriptAsyncSpawnStepFunction* failFunction,
+        JavascriptFunction* generatorMethod);
 };
 
 template<>
@@ -84,22 +77,19 @@ public:
         DynamicType* type,
         FunctionInfo* functionInfo,
         JavascriptGenerator* generator,
-        Var argument,
         Var resolve = nullptr,
         Var reject = nullptr,
-        bool isReject = false) :
+        RuntimeFunction* otherMethod = nullptr) :
             RuntimeFunction(type, functionInfo),
             generator(generator),
-            argument(argument),
             resolve(resolve),
             reject(reject),
-            isReject(isReject) {}
+            otherMethod(otherMethod) {}
 
     Field(JavascriptGenerator*) generator;
     Field(Var) reject;
     Field(Var) resolve;
-    Field(bool) isReject;
-    Field(Var) argument;
+    Field(RuntimeFunction*) otherMethod;
 
 #if ENABLE_TTD
     virtual void MarkVisitKindSpecificPtrs(TTD::SnapshotExtractor* extractor) override;

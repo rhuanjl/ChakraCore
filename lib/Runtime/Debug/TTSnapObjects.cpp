@@ -2551,13 +2551,17 @@ namespace TTD
             SnapJavascriptAsyncSpawnStepFunctionInfo* info = SnapObjectGetAddtlInfoAs<SnapJavascriptAsyncSpawnStepFunctionInfo *, SnapObjectType::JavascriptAsyncSpawnStepFunction>(snpObject);
             Js::Var reject = (info->reject != nullptr) ? inflator->InflateTTDVar(info->reject) : nullptr;
             Js::Var resolve = (info->resolve != nullptr) ? inflator->InflateTTDVar(info->resolve) : nullptr;
-            Js::Var argument = (info->argument != nullptr) ? inflator->InflateTTDVar(info->argument) : nullptr;
-            bool isReject = info->isReject;
 
             Js::JavascriptGenerator* generator = nullptr;
             if (info->generator != TTD_INVALID_PTR_ID)
             {
                 generator = reinterpret_cast<Js::JavascriptGenerator*>(inflator->LookupObject(info->generator));
+            }
+
+            Js::RuntimeFunction* otherMethod = nullptr;
+            if (info->otherMethod != TTD_INVALID_PTR_ID)
+            {
+                otherMethod = reinterpret_cast<Js::RuntimeFunction*>(inflator->LookupObject(info->otherMethod));
             }
 
             Js::JavascriptMethod entryPoint = nullptr;
@@ -2569,15 +2573,12 @@ namespace TTD
             case 2:
                 entryPoint = Js::JavascriptAsyncFunction::EntryAsyncSpawnStepThrowFunction;
                 break;
-            case 3:
-                entryPoint = Js::JavascriptAsyncFunction::EntryAsyncSpawnCallStepFunction;
-                break;
             default:
                 TTDAssert(false, "Unexpected value for entryPoint when inflating JavascriptAsyncSpawnStepFunction");
                 break;
             }
 
-            return ctx->GetLibrary()->CreateAsyncSpawnStepFunction(entryPoint, generator, argument, resolve, reject, isReject);
+            return ctx->GetLibrary()->CreateAsyncSpawnStepFunction(entryPoint, generator, resolve, reject, otherMethod);
         }
 
         void DoAddtlValueInstantiation_SnapJavascriptAsyncSpawnStepFunctionInfo(const SnapObject* snpObject, Js::RecyclableObject* obj, InflateMap* inflator)
@@ -2591,10 +2592,8 @@ namespace TTD
             NSSnapValues::EmitTTDVar(info->reject, writer, NSTokens::Separator::NoSeparator);
             writer->WriteKey(NSTokens::Key::resolve, NSTokens::Separator::CommaSeparator);
             NSSnapValues::EmitTTDVar(info->resolve, writer, NSTokens::Separator::NoSeparator);
-            writer->WriteKey(NSTokens::Key::argument, NSTokens::Separator::CommaSeparator);
-            NSSnapValues::EmitTTDVar(info->argument, writer, NSTokens::Separator::NoSeparator);
+            writer->WriteAddr(NSTokens::Key::otherMethod, info->otherMethod, NSTokens::Separator::CommaSeparator);
             writer->WriteUInt32(NSTokens::Key::u32Val, info->entryPoint, NSTokens::Separator::CommaSeparator);
-            writer->WriteBool(NSTokens::Key::boolVal, info->isReject, NSTokens::Separator::CommaSeparator);
         }
 
         void ParseAddtlInfo_SnapJavascriptAsyncSpawnStepFunctionInfo(SnapObject* snpObject, FileReader* reader, SlabAllocator& alloc)
@@ -2605,10 +2604,8 @@ namespace TTD
             info->reject = NSSnapValues::ParseTTDVar(false, reader);
             reader->ReadKey(NSTokens::Key::resolve, true);
             info->resolve = NSSnapValues::ParseTTDVar(false, reader);
-            reader->ReadKey(NSTokens::Key::argument, true);
-            info->argument = NSSnapValues::ParseTTDVar(false, reader);
+            info->otherMethod = reader->ReadAddr(NSTokens::Key::otherMethod, true);
             info->entryPoint = reader->ReadUInt32(NSTokens::Key::u32Val, true);
-            info->isReject = reader->ReadBool(NSTokens::Key::boolVal, true);
             SnapObjectSetAddtlInfoAs<SnapJavascriptAsyncSpawnStepFunctionInfo*, SnapObjectType::JavascriptAsyncSpawnStepFunction>(snpObject, info);
         }
 

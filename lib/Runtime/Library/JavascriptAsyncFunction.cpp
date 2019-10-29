@@ -50,19 +50,29 @@ Var JavascriptAsyncFunction::EntryAsyncFunctionImplementation(
     auto* generator = library->CreateGenerator(args, scriptFn, library->GetNull());
     auto* promise = library->CreatePromise();
 
-    auto* stepFn = library->CreateAsyncSpawnStepFunction(
-        EntryAsyncSpawnStepNextFunction,
-        generator,
-        library->GetUndefined());
-
     JavascriptExceptionObject* exception = nullptr;
     JavascriptPromiseResolveOrRejectFunction* resolve;
     JavascriptPromiseResolveOrRejectFunction* reject;
     JavascriptPromise::InitializePromise(promise, &resolve, &reject, scriptContext);
 
+    auto* successFunction = library->CreateAsyncSpawnStepFunction(
+        EntryAsyncSpawnStepNextFunction,
+        generator,
+        resolve,
+        reject);
+
+    auto* failFunction = library->CreateAsyncSpawnStepFunction(
+        EntryAsyncSpawnStepThrowFunction,
+        generator,
+        resolve,
+        reject,
+        successFunction);
+
+    successFunction->otherMethod = failFunction;
+
     try
     {
-        AsyncSpawnStep(stepFn, generator, resolve, reject);
+        AsyncSpawnStep(library->GetUndefined(), successFunction, failFunction, library->EnsureGeneratorNextFunction());
     }
     catch (const JavascriptException& err)
     {
@@ -80,21 +90,16 @@ Var JavascriptAsyncFunction::EntryAsyncSpawnStepNextFunction(
     CallInfo callInfo, ...)
 {
     auto* scriptContext = function->GetScriptContext();
+    auto* library = scriptContext->GetLibrary();
+    auto* undefinedVar = library->GetUndefined();
     PROBE_STACK(scriptContext, Js::Constants::MinStackDefault);
+    ARGUMENTS(args, callInfo);
+    Var resolvedValue = args.Info.Count > 1 ? args[1] : undefinedVar;
 
-    auto* stepFn = VarTo<JavascriptAsyncSpawnStepFunction>(function);
-    auto* nextFn = scriptContext->GetLibrary()->EnsureGeneratorNextFunction();
+    auto* successFunction = VarTo<JavascriptAsyncSpawnStepFunction>(function);
+    AsyncSpawnStep(resolvedValue, successFunction, VarTo<JavascriptAsyncSpawnStepFunction>(successFunction->otherMethod), library->EnsureGeneratorNextFunction());
 
-    BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
-    {
-        return CALL_FUNCTION(
-            scriptContext->GetThreadContext(),
-            nextFn,
-            CallInfo(CallFlags_Value, 2),
-            static_cast<Var>(stepFn->generator),
-            static_cast<Var>(stepFn->argument));
-    }
-    END_SAFE_REENTRANT_CALL
+    return undefinedVar;
 }
 
 Var JavascriptAsyncFunction::EntryAsyncSpawnStepThrowFunction(
@@ -102,86 +107,52 @@ Var JavascriptAsyncFunction::EntryAsyncSpawnStepThrowFunction(
     CallInfo callInfo, ...)
 {
     auto* scriptContext = function->GetScriptContext();
-    PROBE_STACK(scriptContext, Js::Constants::MinStackDefault);
-
-    auto* stepFn = VarTo<JavascriptAsyncSpawnStepFunction>(function);
-    auto* throwFn = scriptContext->GetLibrary()->EnsureGeneratorThrowFunction();
-
-    BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
-    {
-        return CALL_FUNCTION(
-            scriptContext->GetThreadContext(),
-            throwFn,
-            CallInfo(CallFlags_Value, 2),
-            static_cast<Var>(stepFn->generator),
-            static_cast<Var>(stepFn->argument));
-    }
-    END_SAFE_REENTRANT_CALL
-}
-
-Var JavascriptAsyncFunction::EntryAsyncSpawnCallStepFunction(
-    RecyclableObject* function,
-    CallInfo callInfo, ...)
-{
-    auto* scriptContext = function->GetScriptContext();
+    auto* library = scriptContext->GetLibrary();
+    auto* undefinedVar = library->GetUndefined();
     PROBE_STACK(scriptContext, Js::Constants::MinStackDefault);
     ARGUMENTS(args, callInfo);
-
-    auto* library = scriptContext->GetLibrary();
-    Var undefinedVar = library->GetUndefined();
     Var resolvedValue = args.Info.Count > 1 ? args[1] : undefinedVar;
 
-    auto* stepFn = VarTo<JavascriptAsyncSpawnStepFunction>(function);
+    auto* failFunction = VarTo<JavascriptAsyncSpawnStepFunction>(function);
+    AsyncSpawnStep(resolvedValue, VarTo<JavascriptAsyncSpawnStepFunction>(failFunction->otherMethod), failFunction, library->EnsureGeneratorThrowFunction());
 
-    JavascriptMethod method = stepFn->isReject
-        ? EntryAsyncSpawnStepThrowFunction
-        : EntryAsyncSpawnStepNextFunction;
-    
-    auto* nextStepFn = library->CreateAsyncSpawnStepFunction(
-        method,
-        stepFn->generator,
-        resolvedValue);
-
-    AsyncSpawnStep(nextStepFn, stepFn->generator, stepFn->resolve, stepFn->reject);
     return undefinedVar;
 }
 
-void JavascriptAsyncFunction::AsyncSpawnStep(
-    JavascriptAsyncSpawnStepFunction* stepFunction,
-    JavascriptGenerator* generator,
-    Var resolve,
-    Var reject)
+void JavascriptAsyncFunction::AsyncSpawnStep(Var resolvedValue, 
+    JavascriptAsyncSpawnStepFunction* successFunction,
+    JavascriptAsyncSpawnStepFunction* failFunction,
+    JavascriptFunction* generatorMethod)
 {
-    ScriptContext* scriptContext = generator->GetScriptContext();
-    BEGIN_SAFE_REENTRANT_REGION(scriptContext->GetThreadContext())
-
-    JavascriptLibrary* library = scriptContext->GetLibrary();
-    Var undefinedVar = library->GetUndefined();
-
-    JavascriptExceptionObject* exception = nullptr;
+    auto* scriptContext = successFunction->GetScriptContext();
+    JavascriptGenerator* generator = successFunction->generator;
     RecyclableObject* result = nullptr;
+
+    BEGIN_SAFE_REENTRANT_REGION(scriptContext->GetThreadContext())
 
     try
     {
-        Var resultVar = CALL_FUNCTION(
-            scriptContext->GetThreadContext(),
-            stepFunction,
-            CallInfo(CallFlags_Value, 1),
-            undefinedVar);
-
-        result = VarTo<RecyclableObject>(resultVar);
+        BEGIN_SAFE_REENTRANT_CALL(scriptContext->GetThreadContext())
+        {
+            Var resultVar = CALL_FUNCTION(
+                scriptContext->GetThreadContext(),
+                generatorMethod,
+                CallInfo(CallFlags_Value, 2),
+                static_cast<Var>(generator),
+                static_cast<Var>(resolvedValue));
+            result = VarTo<RecyclableObject>(resultVar);
+        }
+        END_SAFE_REENTRANT_CALL
     }
     catch (const JavascriptException& err)
     {
-        exception = err.GetAndClear();
-    }
-
-    if (exception != nullptr)
-    {
-        // If the generator threw an exception, reject the promise
-        JavascriptPromise::TryRejectWithExceptionObject(exception, reject, scriptContext);
+        JavascriptExceptionObject* exception = err.GetAndClear();
+        JavascriptPromise::TryRejectWithExceptionObject(exception, successFunction->reject, scriptContext);
         return;
     }
+
+    JavascriptLibrary* library = scriptContext->GetLibrary();
+    Var undefinedVar = library->GetUndefined();
 
     Assert(result != nullptr);
 
@@ -190,12 +161,12 @@ void JavascriptAsyncFunction::AsyncSpawnStep(
     // If the generator is done, resolve the promise
     if (generator->IsCompleted())
     {
-        if (!JavascriptConversion::IsCallable(resolve))
+        if (!JavascriptConversion::IsCallable(successFunction->resolve))
             JavascriptError::ThrowTypeError(scriptContext, JSERR_NeedFunction);
 
         CALL_FUNCTION(
             scriptContext->GetThreadContext(),
-            VarTo<RecyclableObject>(resolve),
+            VarTo<RecyclableObject>(successFunction->resolve),
             CallInfo(CallFlags_Value, 2),
             undefinedVar,
             value);
@@ -206,23 +177,6 @@ void JavascriptAsyncFunction::AsyncSpawnStep(
     {
         Assert(JavascriptOperators::GetTypeId(result) == TypeIds_AwaitObject);
     }
-
-
-    // Chain off the yielded promise and step again
-    auto* successFunction = library->CreateAsyncSpawnStepFunction(
-        EntryAsyncSpawnCallStepFunction,
-        generator,
-        undefinedVar,
-        resolve,
-        reject);
-
-    auto* failFunction = library->CreateAsyncSpawnStepFunction(
-        EntryAsyncSpawnCallStepFunction,
-        generator,
-        undefinedVar,
-        resolve,
-        reject,
-        true);
 
     auto* promise = JavascriptPromise::InternalPromiseResolve(value, scriptContext);
     auto* unused = JavascriptPromise::UnusedPromiseCapability(scriptContext);
@@ -289,9 +243,9 @@ void JavascriptAsyncSpawnStepFunction::MarkVisitKindSpecificPtrs(TTD::SnapshotEx
         extractor->MarkVisitVar(this->resolve);
     }
 
-    if (this->argument != nullptr)
+    if (this->otherMethod != nullptr)
     {
-        extractor->MarkVisitVar(this->argument);
+        extractor->MarkVisitVar(this->otherMethod);
     }
 }
 
@@ -306,8 +260,7 @@ void JavascriptAsyncSpawnStepFunction::ExtractSnapObjectDataInto(TTD::NSSnapObje
     info->generator = TTD_CONVERT_VAR_TO_PTR_ID(this->generator);
     info->reject = this->reject;
     info->resolve = this->resolve;
-    info->argument = this->argument;
-    info->isReject = this->isReject;
+    info->otherMethod = TTD_CONVERT_VAR_TO_PTR_ID(this->otherMethod);
 
     info->entryPoint = 0;
     JavascriptMethod entryPoint = this->GetFunctionInfo()->GetOriginalEntryPoint();
@@ -318,10 +271,6 @@ void JavascriptAsyncSpawnStepFunction::ExtractSnapObjectDataInto(TTD::NSSnapObje
     else if (entryPoint == JavascriptAsyncFunction::EntryAsyncSpawnStepThrowFunction)
     {
         info->entryPoint = 2;
-    }
-    else if (entryPoint == JavascriptAsyncFunction::EntryAsyncSpawnCallStepFunction)
-    {
-        info->entryPoint = 3;
     }
     else
     {
@@ -343,9 +292,9 @@ void JavascriptAsyncSpawnStepFunction::ExtractSnapObjectDataInto(TTD::NSSnapObje
         depCount++;
     }
 
-    if (this->argument != nullptr &&  TTD::JsSupport::IsVarComplexKind(this->argument))
+    if (this->otherMethod != nullptr &&  TTD::JsSupport::IsVarComplexKind(this->otherMethod))
     {
-        depArray[depCount] = TTD_CONVERT_VAR_TO_PTR_ID(this->argument);
+        depArray[depCount] = TTD_CONVERT_VAR_TO_PTR_ID(this->otherMethod);
         depCount++;
     }
 

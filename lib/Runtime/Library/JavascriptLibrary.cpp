@@ -6148,10 +6148,9 @@ namespace Js
     JavascriptAsyncSpawnStepFunction* JavascriptLibrary::CreateAsyncSpawnStepFunction(
         JavascriptMethod entryPoint,
         JavascriptGenerator* generator,
-        Var argument,
         Var resolve,
         Var reject,
-        bool isReject)
+        RuntimeFunction* otherMethod)
     {
         FunctionInfo* functionInfo = RecyclerNew(GetRecycler(), FunctionInfo, entryPoint);
         DynamicType* type = CreateDeferredPrototypeFunctionType(
@@ -6164,10 +6163,9 @@ namespace Js
             type,
             functionInfo,
             generator,
-            argument,
             resolve,
             reject,
-            isReject);
+            otherMethod);
     }
 
     JavascriptGenerator* JavascriptLibrary::CreateGenerator(

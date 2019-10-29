@@ -1179,8 +1179,7 @@ namespace TTD
             TTD_PTR_ID generator;
             TTDVar reject;
             TTDVar resolve;
-            bool isReject;
-            TTDVar argument;
+            TTD_PTR_ID otherMethod;
             uint32 entryPoint;
         };
 
