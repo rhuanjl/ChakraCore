@@ -50,6 +50,7 @@ FLAG_RELEASE(IsESSymbolDescriptionEnabled, ESSymbolDescription)
 FLAG_RELEASE(IsESGlobalThisEnabled, ESGlobalThis)
 FLAG_RELEASE(IsES2018AsyncIterationEnabled, ES2018AsyncIteration)
 FLAG_RELEASE(IsESTopLevelAwaitEnabled, ESTopLevelAwait)
+FLAG_RELEASE(IsESOptionalChainingEnabled, ESOptionalChaining)
 
 #ifdef ENABLE_TEST_HOOKS
 FLAG_RELEASE(Force32BitByteCode, Force32BitByteCode)

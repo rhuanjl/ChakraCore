@@ -669,6 +669,7 @@ PHASE(All)
 #define DEFAULT_CONFIG_ESHashbang              (true)
 #define DEFAULT_CONFIG_ESSymbolDescription     (true)
 #define DEFAULT_CONFIG_ESNullishCoalescingOperator (true)
+#define DEFAULT_CONFIG_ESOptionalChaining      (true)
 #define DEFAULT_CONFIG_ESGlobalThis            (true)
 #ifdef COMPILE_DISABLE_ES6RegExPrototypeProperties
     // If ES6RegExPrototypeProperties needs to be disabled by compile flag, DEFAULT_CONFIG_ES6RegExPrototypeProperties should be false
@@ -1187,6 +1188,9 @@ FLAGR(Boolean, ESNumericSeparator, "Enable Numeric Separator flag", DEFAULT_CONF
 
 // ES Nullish coalescing operator support (??)
 FLAGR(Boolean, ESNullishCoalescingOperator, "Enable nullish coalescing operator", DEFAULT_CONFIG_ESNullishCoalescingOperator)
+
+// ES Optional chaining operator support (?.)
+FLAGR(Boolean, ESOptionalChaining, "Enable optional chaining operator", DEFAULT_CONFIG_ESOptionalChaining)
 
 // ES Hashbang support for interpreter directive syntax
 FLAGR(Boolean, ESHashbang, "Enable Hashbang syntax", DEFAULT_CONFIG_ESHashbang)

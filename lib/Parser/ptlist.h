@@ -80,6 +80,7 @@ PTNODE(knopGe         , ">="               , OP(Ge)   , Bin         , fnopBin|fn
 PTNODE(knopGt         , ">"                , OP(Gt)   , Bin         , fnopBin|fnopRel       , "GreaterThanOper"                )
 PTNODE(knopCall       , "()"               , Nop      , Call        , fnopNone              , "CallExpr"                       )
 PTNODE(knopDot        , "."                , Nop      , Bin         , fnopBin               , "DotOper"                        )
+PTNODE(knopOpt        , "?."               , Nop      , Bin         , fnopBin               , "OptChain"                       )
 PTNODE(knopAsg        , "="                , Nop      , Bin         , fnopBin|fnopAsg       , "AssignmentOper"                 )
 PTNODE(knopInstOf     , "instanceof"       , IsInst   , Bin         , fnopBin|fnopRel       , "InstanceOfExpr"                 )
 PTNODE(knopIn         , "in"               , IsIn     , Bin         , fnopBin|fnopRel       , "InOper"                         )

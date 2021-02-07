@@ -173,6 +173,7 @@ TOK_DCL(tkDec           , No, knopNone   ,Uni, knopDecPre ) // --
 TOK_DCL(tkEllipsis      , No, knopNone   ,Spr, knopEllipsis ) // ...
 TOK_DCL(tkLParen        , No, knopNone   , No, knopNone   ) // (
 TOK_DCL(tkLBrack        , No, knopNone   , No, knopNone   ) // [
+TOK_DCL(tkOpt           , No, knopNone   , No, knopNone   ) // ?.
 TOK_DCL(tkDot           , No, knopNone   , No, knopNone   ) // .
 
 // String template tokens

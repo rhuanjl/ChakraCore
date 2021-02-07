@@ -959,6 +959,17 @@ private:
         _Inout_opt_ charcount_t *plastRParen = nullptr,
         _Out_opt_ bool* looseCoalesce = nullptr);
 
+    template<bool buildAST> ParseNodePtr ParseOptionalChain(
+        ParseNodePtr pnode,
+        tokens nextToken,
+        bool fAllowCall,
+        bool isAsyncExpr,
+        uint16 count,
+        bool callOfConstants,
+        uint16 spreadArgCount,
+        _Inout_ IdentToken* pToken,
+        _Out_opt_ bool* pfIsDotOrIndex = nullptr);
+
     template<bool buildAST> ParseNodePtr ParsePostfixOperators(
         ParseNodePtr pnode,
         BOOL fAllowCall, 

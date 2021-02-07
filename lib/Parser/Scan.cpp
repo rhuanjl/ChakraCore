@@ -1780,6 +1780,11 @@ LEof:
                 token = tkCoalesce;
                 break;
             }
+            if (m_scriptContext->GetConfig()->IsESOptionalChainingEnabled() && this->PeekFirst(p, last) == '.' && !Js::NumberUtilities::IsDigit(*(p+1)))
+            {
+                p++;
+                token = tkOpt;
+            }
             break;
 
         case '{': Assert(chType == _C_LC);  token = tkLCurly; break;

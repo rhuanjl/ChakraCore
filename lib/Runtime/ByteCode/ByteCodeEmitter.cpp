@@ -10,7 +10,7 @@
 void EmitReference(ParseNode *pnode, ByteCodeGenerator *byteCodeGenerator, FuncInfo *funcInfo);
 void EmitAssignment(ParseNode *asgnNode, ParseNode *lhs, Js::RegSlot rhsLocation, ByteCodeGenerator *byteCodeGenerator, FuncInfo *funcInfo);
 void EmitLoad(ParseNode *rhs, ByteCodeGenerator *byteCodeGenerator, FuncInfo *funcInfo);
-void EmitCall(ParseNodeCall* pnodeCall, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, BOOL fReturnValue, BOOL fEvaluateComponents, Js::RegSlot overrideThisLocation = Js::Constants::NoRegister, Js::RegSlot newTargetLocation = Js::Constants::NoRegister);
+void EmitCall(ParseNodeCall* pnodeCall, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, BOOL fReturnValue, BOOL fEvaluateComponents, Js::RegSlot overrideThisLocation = Js::Constants::NoRegister, Js::RegSlot newTargetLocation = Js::Constants::NoRegister, bool isOptional = false);
 void EmitStartupYield(ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
 void EmitYield(Js::RegSlot resultReg, Js::RegSlot inputReg, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
 void EmitAwait(Js::RegSlot resultReg, Js::RegSlot inputReg, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo);
@@ -7909,7 +7909,7 @@ void EmitMethodFld(ParseNode *pnode, Js::RegSlot callObjLocation, Js::PropertyId
 }
 
 // lhs.apply(this, arguments);
-void EmitApplyCall(ParseNodeCall* pnodeCall, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, BOOL fReturnValue)
+void EmitApplyCall(ParseNodeCall* pnodeCall, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, BOOL fReturnValue, bool isOptional = false)
 {
     ParseNode* applyNode = pnodeCall->pnodeTarget;
     ParseNode* thisNode = pnodeCall->pnodeArgs->AsParseNodeBin()->pnode1;
@@ -7922,7 +7922,8 @@ void EmitApplyCall(ParseNodeCall* pnodeCall, ByteCodeGenerator* byteCodeGenerato
 
     Assert(applyNode->nop == knopDot);
 
-    Emit(funcNode, byteCodeGenerator, funcInfo, false);
+    if (!isOptional)
+        Emit(funcNode, byteCodeGenerator, funcInfo, false);
 
     funcInfo->AcquireLoc(applyNode);
     Js::PropertyId propertyId = applyNode->AsParseNodeBin()->pnode2->AsParseNodeName()->PropertyIdFromNameNode();
@@ -8494,7 +8495,8 @@ void EmitCall(
     BOOL fReturnValue,
     BOOL fEvaluateComponents,
     Js::RegSlot overrideThisLocation,
-    Js::RegSlot newTargetLocation)
+    Js::RegSlot newTargetLocation,
+    bool isOptional)
 {
     // If the call returns a float, we'll note this in the byte code.
     Js::RegSlot thisLocation = Js::Constants::NoRegister;
@@ -8563,8 +8565,9 @@ void EmitCall(
     bool releaseThisLocation = true;
 
     // We already emit the call target for super calls in EmitSuperCall
+    // and for an optional call we'll have emitted the target in EmitOptionalChain
     Js::ProfileId callApplyCallSiteId = Js::Constants::NoProfileId;
-    if (!fIsSuperCall)
+    if (!fIsSuperCall && !isOptional)
     {
         if (!fEvaluateComponents)
         {
@@ -11095,6 +11098,123 @@ void TrackGlobalIntAssignments(ParseNodePtr pnode, ByteCodeGenerator * byteCodeG
     }
 }
 
+void EmitOptionalChainElement(Js::RegSlot target, ParseNode* element, ByteCodeGenerator* byteCodeGenerator, 
+    FuncInfo* funcInfo, Js::ByteCodeLabel skipLabel, bool fReturnValue, bool deletion, bool final)
+{
+    switch (element->nop)
+    {
+        case knopDot:
+        {
+            Js::PropertyId propertyId = element->AsParseNodeBin()->pnode2->AsParseNodeName()->PropertyIdFromNameNode();
+            
+            if (deletion && final)
+            {
+                byteCodeGenerator->Writer()->Property(Js::OpCode::DeleteFld, target, target,
+                    funcInfo->FindOrAddReferencedPropertyId(propertyId), byteCodeGenerator->forceStrictModeForClassComputedPropertyName);
+            }
+            else
+            {
+                uint cacheId = funcInfo->FindOrAddInlineCacheId(target, propertyId, false, false);
+                if (propertyId == Js::PropertyIds::length)
+                {
+                    byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdLen_A, target, target, cacheId);
+                }
+                else if (element->IsCallApplyTargetLoad())
+                {
+                    printf("do we get here?\n");
+                    byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdFldForCallApplyTarget, target, target, cacheId);
+                }
+                else
+                {
+                    byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdFld_ReuseLoc, target, target, cacheId, false);
+                }
+            }
+            break;
+        }
+        case knopIndex:
+        {
+            ParseNodePtr index = element->AsParseNodeBin()->pnode2;
+            Emit(index, byteCodeGenerator, funcInfo, false);
+            if (deletion && final)
+            {
+                byteCodeGenerator->Writer()->Element(
+                    Js::OpCode::DeleteElemI_A, target, target, index->location);
+            }
+            else
+            {
+                byteCodeGenerator->Writer()->Element(
+                    Js::OpCode::LdElemI_A, target, target, index->location);
+            }
+            funcInfo->ReleaseLoc(index);
+            break;
+        }
+        case knopCall:
+        {
+            ParseNodeCall* pnodeCall = element->AsParseNodeCall();
+            funcInfo->AcquireLoc(pnodeCall->pnodeTarget);
+            byteCodeGenerator->Writer()->Reg2(Js::OpCode::Ld_A, pnodeCall->pnodeTarget->location, target);
+            if (pnodeCall->isApplyCall && funcInfo->GetApplyEnclosesArgs())
+            {
+                // TODO[ianhall]: Can we remove the ApplyCall bytecode gen time optimization?
+                EmitApplyCall(pnodeCall, byteCodeGenerator, funcInfo, fReturnValue, true);
+            }
+            else
+            {
+                EmitCall(pnodeCall, byteCodeGenerator, funcInfo, fReturnValue, /*fEvaluateComponents*/ true, Js::Constants::NoRegister, Js::Constants::NoRegister, true);
+            }
+            byteCodeGenerator->Writer()->Reg2(Js::OpCode::Ld_A_ReuseLoc, target, pnodeCall->location);
+            funcInfo->ReleaseLoc(pnodeCall);
+            break;
+        }
+        // knopEmpty is used to mark another optional marker mid-chain
+        case knopEmpty:
+        {
+            // check for null or undefined and skip down if found
+            byteCodeGenerator->Writer()->BrReg2(Js::OpCode::BrEq_A, skipLabel, target, funcInfo->nullConstantRegister);
+            break;
+        }
+    }
+}
+
+void EmitOptionalChain(ParseNode* pnode, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, bool fReturnValue, bool deletion)
+{
+    Js::ByteCodeLabel skipLabel = byteCodeGenerator->Writer()->DefineLabel();
+    Js::ByteCodeLabel continueLabel = byteCodeGenerator->Writer()->DefineLabel();
+
+    ParseNodePtr outputNode = pnode;
+
+    funcInfo->AcquireLoc(outputNode);
+    if (deletion)
+    {
+        pnode = pnode->AsParseNodeUni()->pnode1;
+    }
+
+    // evaluate the left hand side of the Optional operator
+    ParseNodePtr lhs = pnode->AsParseNodeBin()->pnode1;
+    Emit(lhs, byteCodeGenerator, funcInfo, false);
+
+    // check for null or undefined and skip down if found
+    byteCodeGenerator->Writer()->BrReg2(Js::OpCode::BrEq_A, skipLabel, lhs->location, funcInfo->nullConstantRegister);
+    byteCodeGenerator->Writer()->Reg2(Js::OpCode::Ld_A, outputNode->location, lhs->location);
+    funcInfo->ReleaseLoc(lhs);
+    // evaluate the right hand side of the Optional operator
+    ParseNodePtr nodeList = pnode->AsParseNodeBin()->pnode2;
+
+    // need to find a way to look ahead when a call is coming up
+    // or may have to reverse the whole order in which case would need a way to drill backwards
+    while (nodeList->nop == knopList)
+    {
+        EmitOptionalChainElement(outputNode->location, nodeList->AsParseNodeBin()->pnode1, byteCodeGenerator, funcInfo, skipLabel, fReturnValue, deletion, false);
+        nodeList = nodeList->AsParseNodeBin()->pnode2;
+    }
+    EmitOptionalChainElement(outputNode->location, nodeList, byteCodeGenerator, funcInfo, skipLabel, fReturnValue, deletion, true);
+
+    byteCodeGenerator->Writer()->Br(continueLabel);
+    byteCodeGenerator->Writer()->MarkLabel(skipLabel);
+    byteCodeGenerator->Writer()->Reg1(deletion ? Js::OpCode::LdTrue : Js::OpCode::LdUndef, outputNode->location);
+    byteCodeGenerator->Writer()->MarkLabel(continueLabel);
+}
+
 void Emit(ParseNode* pnode, ByteCodeGenerator* byteCodeGenerator, FuncInfo* funcInfo, BOOL fReturnValue, bool isConstructorCall, bool isTopLevel)
 {
     if (pnode == nullptr)
@@ -11504,6 +11624,12 @@ void Emit(ParseNode* pnode, ByteCodeGenerator* byteCodeGenerator, FuncInfo* func
             byteCodeGenerator->Writer()->Element(Js::OpCode::DeleteElemI_A, pnode->location, pexpr->AsParseNodeBin()->pnode1->location, pexpr->AsParseNodeBin()->pnode2->location);
             break;
         }
+        case knopOpt:
+        {
+            funcInfo->AcquireLoc(pnode);
+            EmitOptionalChain(pnode, byteCodeGenerator, funcInfo, fReturnValue, true);
+            break;
+        }
         default:
         {
             Emit(pexpr, byteCodeGenerator, funcInfo, false);
@@ -11615,7 +11741,11 @@ void Emit(ParseNode* pnode, ByteCodeGenerator* byteCodeGenerator, FuncInfo* func
 
         break;
     }
-
+    case knopOpt:
+    {
+        EmitOptionalChain(pnode, byteCodeGenerator, funcInfo, fReturnValue, false);
+        break;
+    }
     // PTNODE(knopAsg        , "="            ,None    ,Bin  ,fnopBin|fnopAsg)
     case knopAsg:
     {

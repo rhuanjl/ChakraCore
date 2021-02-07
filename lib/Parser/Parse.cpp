@@ -308,6 +308,7 @@ LPCWSTR Parser::GetTokenString(tokens token)
     case tkEllipsis: return _u("...");
     case tkLParen: return _u("(");
     case tkLBrack: return _u("[");
+    case tkOpt: return _u("?.");
     case tkDot: return _u(".");
 
     default:
@@ -3892,6 +3893,302 @@ BOOL Parser::NodeIsIdent(ParseNodePtr pnode, IdentPtr pid)
 }
 
 template<bool buildAST>
+ParseNodePtr Parser::ParseOptionalChain(
+    ParseNodePtr pnode,
+    tokens nextToken,
+    bool fAllowCall,
+    bool isAsyncExpr,
+    uint16 count,
+    bool callOfConstants,
+    uint16 spreadArgCount,
+    _Inout_ IdentToken* pToken,
+    _Out_opt_ bool* pfIsDotOrIndex /*= nullptr */)
+{
+    ParseNodePtr pnodeList = nullptr;
+    ParseNodePtr *lastNodeRef = nullptr;
+    
+    
+    for (;;)
+    {
+        switch(nextToken)
+        {
+            case tkLParen:
+            {
+                AutoMarkInParsingArgs autoMarkInParsingArgs(this);
+
+                if (!fAllowCall)
+                {
+                    return pnodeList;
+                }
+
+                uint saveNextBlockId = m_nextBlockId;
+                uint saveCurrBlockId = GetCurrentBlock()->blockId;
+
+                if (isAsyncExpr)
+                {
+                    // Advance the block ID here in case this parenthetical expression turns out to be a lambda parameter list.
+                    // That way the pid ref stacks will be created in their correct final form, and we can simply fix
+                    // up function ID's.
+                    GetCurrentBlock()->blockId = m_nextBlockId++;
+                }
+
+                ParseNodePtr pnodeArgs = ParseArgList<buildAST>(&callOfConstants, &spreadArgCount, &count);
+                // We used to un-defer a deferred function body here if it was called as part of the expression that declared it.
+                // We now detect this case up front in ParseFncDecl, which is cheaper and simpler.
+                if (buildAST)
+                {
+                    bool fCallIsEval = false;
+
+
+                    pnode = CreateCallNode(knopCall, pnode, pnodeArgs);
+                    Assert(pnode);
+
+                    // Detect call to "eval" and record it on the function.
+                    // Note: we used to leave it up to the byte code generator to detect eval calls
+                    // at global scope, but now it relies on the flag the parser sets, so set it here.
+
+                    if (count > 0 && this->NodeIsEvalName(pnode->AsParseNodeCall()->pnodeTarget))
+                    {
+                        this->MarkEvalCaller();
+                        fCallIsEval = true;
+
+                        // Eval may reference any of the special symbols so we need to push refs to them here.
+                        ReferenceSpecialName(wellKnownPropertyPids._this);
+                        ReferenceSpecialName(wellKnownPropertyPids._newTarget);
+                        ReferenceSpecialName(wellKnownPropertyPids._super);
+                        ReferenceSpecialName(wellKnownPropertyPids._superConstructor);
+                        ReferenceSpecialName(wellKnownPropertyPids.arguments);
+                    }
+
+                    pnode->AsParseNodeCall()->callOfConstants = callOfConstants;
+                    pnode->AsParseNodeCall()->spreadArgCount = spreadArgCount;
+                    pnode->AsParseNodeCall()->isApplyCall = false;
+                    pnode->AsParseNodeCall()->isEvalCall = fCallIsEval;
+                    pnode->AsParseNodeCall()->hasDestructuring = m_hasDestructuringPattern;
+                    Assert(!m_hasDestructuringPattern || count > 0);
+                    pnode->AsParseNodeCall()->argCount = count;
+                    pnode->ichLim = this->GetScanner()->IchLimTok();
+                }
+                else
+                {
+                    pnode = nullptr;
+                    if (pToken->tk == tkID && pToken->pid == wellKnownPropertyPids.eval && count > 0) // Detect eval
+                    {
+                        this->MarkEvalCaller();
+
+                        ReferenceSpecialName(wellKnownPropertyPids._this);
+                        ReferenceSpecialName(wellKnownPropertyPids._newTarget);
+                        ReferenceSpecialName(wellKnownPropertyPids._super);
+                        ReferenceSpecialName(wellKnownPropertyPids._superConstructor);
+                        ReferenceSpecialName(wellKnownPropertyPids.arguments);
+                    }
+                    pToken->tk = tkNone; // This is no longer an identifier
+                }
+
+                ChkCurTok(tkRParen, ERRnoRparen);
+
+                if (isAsyncExpr)
+                {
+                    GetCurrentBlock()->blockId = saveCurrBlockId;
+                    if (m_token.tk == tkDArrow)
+                    {
+                        // We're going to rewind and reinterpret the expression as a parameter list.
+                        // Put back the original next-block-ID so the existing pid ref stacks will be correct.
+                        m_nextBlockId = saveNextBlockId;
+                    }
+                }
+
+                if (pfIsDotOrIndex)
+                {
+                    *pfIsDotOrIndex = false;
+                }
+                nextToken = m_token.tk;
+                break;
+            }
+            case tkLBrack:
+            {
+                this->GetScanner()->Scan();
+                IdentToken tok;
+                ParseNodePtr pnodeExpr = ParseExpr<buildAST>(0, FALSE, TRUE, FALSE, nullptr, nullptr, nullptr, &tok);
+                if (buildAST)
+                {
+                    AnalysisAssert(pnodeExpr);
+
+                    pnode = CreateBinNode(knopIndex, pnode, pnodeExpr);
+
+                    AnalysisAssert(pnode);
+                    pnode->ichLim = this->GetScanner()->IchLimTok();
+                }
+                else
+                {
+                    pToken->tk = tkNone; // This is no longer an identifier
+                }
+                ChkCurTok(tkRBrack, ERRnoRbrack);
+                if (pfIsDotOrIndex)
+                {
+                    *pfIsDotOrIndex = true;
+                }
+
+                PidRefStack * topPidRef = nullptr;
+                if (buildAST)
+                {
+                    if (pnodeExpr && pnodeExpr->nop == knopName)
+                    {
+                        topPidRef = pnodeExpr->AsParseNodeName()->pid->GetTopRef();
+                    }
+                }
+                else if (tok.tk == tkID)
+                {
+                    topPidRef = tok.pid->GetTopRef();
+                }
+                if (topPidRef)
+                {
+                    topPidRef->SetIsUsedInLdElem(true);
+                }
+
+                if (!buildAST)
+                {
+                    break;
+                }
+
+                bool shouldConvertToDot = false;
+                if (pnode->AsParseNodeBin()->pnode2->nop == knopStr)
+                {
+                    // if the string is empty or contains escape character, we will not convert them to dot node
+                    shouldConvertToDot = pnode->AsParseNodeBin()->pnode2->AsParseNodeStr()->pid->Cch() > 0 && !this->GetScanner()->IsEscapeOnLastTkStrCon();
+                }
+
+                if (shouldConvertToDot)
+                {
+                    LPCOLESTR str = pnode->AsParseNodeBin()->pnode2->AsParseNodeStr()->pid->Psz();
+                    // See if we can convert o["p"] into o.p and o["0"] into o[0] since they're equivalent and the latter forms
+                    // are faster
+                    uint32 uintValue;
+                    if (Js::JavascriptOperators::TryConvertToUInt32(
+                        str,
+                        pnode->AsParseNodeBin()->pnode2->AsParseNodeStr()->pid->Cch(),
+                        &uintValue) &&
+                        !Js::TaggedInt::IsOverflow(uintValue)) // the optimization is not very useful if the number can't be represented as a TaggedInt
+                    {
+                        // No need to verify that uintValue != JavascriptArray::InvalidIndex since all nonnegative TaggedInts are valid indexes
+                        auto intNode = CreateIntNode(uintValue); // implicit conversion from uint32 to int32
+                        pnode->AsParseNodeBin()->pnode2 = intNode;
+                    }
+                    // Field optimization (see GlobOpt::KillLiveElems) checks for value being a Number,
+                    // and since NaN/Infinity is a number it won't kill o.NaN/o.Infinity which would cause a problem
+                    // if we decide to hoist o.NaN/o.Infinity.
+                    // We need to keep o["NaN"] and o["+/-Infinity"] as array element access (we don't hoist that but we may hoist field access),
+                    // so no matter if it's killed by o[x] inside a loop, we make sure that we never hoist these.
+                    // We need to follow same logic for strings that convert to a floating point number.
+                    else
+                    {
+                        bool doConvertToProperty = false;    // Convert a["x"] -> a.x.
+                        if (!Parser::IsNaNOrInfinityLiteral<true>(str))
+                        {
+                            const OLECHAR* terminalChar;
+                            double dbl = Js::NumberUtilities::StrToDbl(str, &terminalChar, m_scriptContext);
+                            bool convertsToFloat = !Js::NumberUtilities::IsNan(dbl);
+                            doConvertToProperty = !convertsToFloat;
+                        }
+
+                        if (doConvertToProperty)
+                        {
+                            ParseNodeName * pnodeNewExpr = CreateNameNode(pnodeExpr->AsParseNodeStr()->pid);
+                            pnodeNewExpr->ichMin = pnodeExpr->ichMin;
+                            pnodeNewExpr->ichLim = pnodeExpr->ichLim;
+                            pnode->AsParseNodeBin()->pnode2 = pnodeNewExpr;
+                            pnode->nop = knopDot;
+                            pnode->grfpn |= PNodeFlags::fpnIndexOperator;
+                        }
+                    }
+                }
+                nextToken = m_token.tk;
+                break;
+            }
+            case tkDot:
+            {
+                ParseNodePtr name = nullptr;
+                OpCode opCode = knopDot;
+
+                if (m_token.tk == tkDot)
+                {
+                    this->GetScanner()->Scan();
+                }
+
+                if (!m_token.IsIdentifier())
+                {
+                    //allow reserved words in ES5 mode
+                    if (!(m_token.IsReservedWord()))
+                    {
+                        IdentifierExpectedError(m_token);
+                    }
+                }
+                // Note: see comment above about field optimization WRT NaN/Infinity/-Infinity.
+                // Convert a.Nan, a.Infinity into a["NaN"], a["Infinity"].
+                // We don't care about -Infinity case here because x.-Infinity is invalid in JavaScript.
+                // Both NaN and Infinity are identifiers.
+                else if (buildAST && Parser::IsNaNOrInfinityLiteral<false>(m_token.GetIdentifier(this->GetHashTbl())->Psz()))
+                {
+                    opCode = knopIndex;
+                }
+
+                if (buildAST)
+                {
+                    if (opCode == knopDot)
+                    {
+                        name = CreateNameNode(m_token.GetIdentifier(this->GetHashTbl()));
+                    }
+                    else
+                    {
+                        Assert(opCode == knopIndex);
+                        name = CreateStrNode(m_token.GetIdentifier(this->GetHashTbl()));
+                    }
+
+                    pnode = CreateBinNode(opCode, pnode, name);
+                }
+                else
+                {
+                    pToken->tk = tkNone;
+                }
+
+                if (pfIsDotOrIndex)
+                {
+                    *pfIsDotOrIndex = true;
+                }
+                this->GetScanner()->Scan();
+
+                nextToken = m_token.tk;
+                break;
+            }
+            case tkOpt:
+            {
+                this->GetScanner()->Scan();
+                nextToken = tkDot;
+                if (m_token.tk == tkLBrack || m_token.tk == tkLParen)
+                {
+                    nextToken = m_token.tk;
+                }
+
+                if (buildAST)
+                {
+                    // use an empty Op code for new Opt tokens
+                    // as contextually in the bytecode emitter very options permitted
+                    // as we're already in an optional chain don't need to convey info with the op
+                    pnode = CreateNodeForOpT<knopEmpty>();
+                }
+                break;
+            }
+            default:
+            return pnodeList;
+        }
+        if (buildAST)
+        {
+            AddToNodeListEscapedUse(&pnodeList, &lastNodeRef, pnode);
+        }
+    }
+}
+
+template<bool buildAST>
 ParseNodePtr Parser::ParsePostfixOperators(
     ParseNodePtr pnode,
     BOOL fAllowCall,
@@ -4163,7 +4460,39 @@ ParseNodePtr Parser::ParsePostfixOperators(
             }
         }
         break;
+        case tkOpt:
+        {
+            // ban optional construction
+            if (fInNew)
+            {
+                Error(ERRInvalidAfter, _u("?."), _u("new"));
+            }
+            if (this->NodeIsSuperName(pnode))
+            {
+                Error(ERRInvalidAfter, _u("?."), _u("super"));
+            }
+            // optional assignment not permitted
+            if (pfCanAssign)
+            {
+                *pfCanAssign = false;
+            }
+            
+            this->GetScanner()->Scan();
+            tokens firstToken = tkDot;
+            if (m_token.tk == tkLBrack || m_token.tk == tkLParen)
+            {
+                firstToken = m_token.tk;
+            }
 
+            ParseNodePtr nodeList = ParseOptionalChain<buildAST>(pnode, firstToken, fAllowCall, isAsyncExpr, count, callOfConstants, spreadArgCount, pToken, pfIsDotOrIndex);
+
+            if (buildAST)
+            {
+                pnode = CreateBinNode(knopOpt, pnode, nodeList);
+            }
+
+            return pnode;
+        }
         case tkDot:
         {
             ParseNodePtr name = nullptr;
